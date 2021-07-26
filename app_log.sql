@@ -42,7 +42,7 @@ THE SOFTWARE.
 -- In addition to generally useful logging, it is indispensable for debugging and development.
 --
 whenever sqlerror continue
-DROP TYPE app_log_udt;
+DROP TYPE app_log_udt FORCE;
 prompt ok drop failed for type not exists
 DROP VIEW app_log_v;
 prompt ok if drop failed for view not exists
@@ -135,7 +135,7 @@ CREATE OR REPLACE VIEW app_log_tail_v(time_stamp, elapsed, logmsg, app_name) AS
     ORDER BY b.ts
 ;
 --
-CREATE OR REPLACE TYPE app_log_udt AS OBJECT (
+CREATE OR REPLACE TYPE app_log_udt FORCE AS OBJECT (
 /* 
     Purpose: Provide general purpose logging capability for PL/SQL applications
 
