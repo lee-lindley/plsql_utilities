@@ -171,11 +171,15 @@ no need for them. The interface is through the methods:
         ,p_subject          VARCHAR2 DEFAULT NULL
         ,p_body             CLOB DEFAULT NULL
         ,p_log              app_log_udt DEFAULT NULL -- optional at compile time
-    )
-        RETURN SELF AS RESULT,
+    ) RETURN SELF AS RESULT
     ,MEMBER PROCEDURE send
     ,MEMBER PROCEDURE add_paragraph(p_clob CLOB)
     ,MEMBER PROCEDURE add_to_body(p_clob CLOB)
+    ,MEMBER PROCEDURE add_table_to_body( -- see cursor_to_table
+        p_sql_string    CLOB            := NULL
+        ,p_refcursor    SYS_REFCURSOR   := NULL
+        ,p_caption      VARCHAR2        := NULL
+    )
     -- these take strings that can have multiple comma separated email addresses
     ,MEMBER PROCEDURE add_to(p_to VARCHAR2) 
     ,MEMBER PROCEDURE add_cc(p_cc VARCHAR2)
@@ -191,7 +195,7 @@ no need for them. The interface is through the methods:
 
 As a bonus it provides a static function to convert a cursor or query string 
 into a CLOB containing an HTML table. You can include that in the email
-or use it for a different purpose.
+or use it for a different purpose. It is called by member method *add_table_to_body*.
 ```sql
     --Note: that if the cursor does not return any rows, we silently pass back an empty clob
     ,STATIC FUNCTION cursor_to_table(
@@ -244,7 +248,8 @@ BEGIN
     );
     v_email.add_paragraph('We constructed and sent this email with html_email_udt.');
     v_src := l_getcurs;
-    v_email.add_to_body(html_email_udt.cursor_to_table(p_refcursor => v_src, p_caption => 'DBA Views'));
+    --v_email.add_to_body(html_email_udt.cursor_to_table(p_refcursor => v_src, p_caption => 'DBA Views'));
+    v_email.add_table_to_body(p_refcursor => v_src, p_caption => 'DBA Views');
     -- we need to close it because we are going to open again.
     -- The called package may have closed it, but must be sure or nasty
     -- bugs/caching can happen.

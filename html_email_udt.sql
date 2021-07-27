@@ -137,7 +137,8 @@ SOFTWARE.
 --        );
 --        v_email.add_paragraph('We constructed and sent this email with html_email_udt.');
 --        v_src := l_getcurs;
---        v_email.add_to_body(html_email_udt.cursor_to_table(p_refcursor => v_src, p_caption => 'DBA Views'));
+--        --v_email.add_to_body(html_email_udt.cursor_to_table(p_refcursor => v_src, p_caption => 'DBA Views'));
+--        v_email.add_table_to_body(p_refcursor => v_src, p_caption => 'DBA Views');
 --        -- we need to close it because we are going to open again.
 --        -- The called package may have closed it, but must be sure or nasty 
 --        -- bugs/caching can happen.
@@ -203,6 +204,11 @@ $end
     ,MEMBER PROCEDURE send
     ,MEMBER PROCEDURE add_paragraph(p_clob CLOB)
     ,MEMBER PROCEDURE add_to_body(p_clob CLOB)
+    ,MEMBER PROCEDURE add_table_to_body( -- see cursor_to_table
+        p_sql_string    CLOB            := NULL
+        ,p_refcursor    SYS_REFCURSOR  := NULL
+        ,p_caption      VARCHAR2        := NULL
+    )
     -- these take strings that can have multiple comma separated email addresses
     ,MEMBER PROCEDURE add_to(p_to VARCHAR2) 
     ,MEMBER PROCEDURE add_cc(p_cc VARCHAR2)
@@ -249,7 +255,7 @@ $end
         -- not share this issue.
         p_sql_string    CLOB            := NULL
         -- pass in an open cursor. This is better for my money.
-        ,p_refcursor     SYS_REFCURSOR  := NULL
+        ,p_refcursor    SYS_REFCURSOR   := NULL
         -- if provided, will be the caption on the table, generally centered on the top of it
         -- by most renderers.
         ,p_caption      VARCHAR2        := NULL
@@ -370,6 +376,16 @@ $end
             ,p_blob_content
         );
     END; -- end add_attachment
+
+    MEMBER PROCEDURE add_table_to_body( -- see cursor_to_table
+        p_sql_string    CLOB            := NULL
+        ,p_refcursor    SYS_REFCURSOR   := NULL
+        ,p_caption      VARCHAR2        := NULL
+    ) IS
+    BEGIN
+        body := body
+            ||html_email_udt.cursor_to_table(p_sql_string => p_sql_string, p_refcursor => p_refcursor, p_caption => p_caption);
+    END; -- end add_table_to_body
 
     STATIC FUNCTION cursor_to_table(
         p_sql_string    CLOB            := NULL -- either the CLOB or the cursor must be null
