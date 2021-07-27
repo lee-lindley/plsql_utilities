@@ -1,5 +1,5 @@
 -- REQUIRES: split
---      if you do not want to deploy mine, deploy your own or create a local function.
+--      if you do not want to deploy mine, deploy your own or create a local static function.
 -- REQUIRES: arr_varchar2_udt
 --      If you have your own you can easily substitute it in the code yourself.
 --
@@ -9,6 +9,32 @@
 --ALTER SESSION SET plsql_code_type = NATIVE;
 --ALTER SESSION SET plsql_optimize_level=3;
 --
+/*
+    NOTE: you must have priv to write to the network. This is a big subject. 
+    Here is what I did as sysdba in order for my account (lee) to be able to write to 
+    port 25 on my Oracle server on RHL. Assuming you have an smtp server somewhere
+    other than your database server like most sane organizations, you will need 
+    the ACL entry for that host and the schema where you are deploying this. 
+    If not you will get:
+
+    ORA-24247: network access denied by access control list (ACL)
+    
+    when you try to send an email. This is true even though we are writing to localhost!
+
+begin
+    dbms_network_acl_admin.append_host_ace(
+        host => 'localhost'
+        ,lower_port => NULL
+        ,upper_port => NULL
+        ,ace => xs$ace_type(
+            privilege_list => xs$name_list('smtp')
+            ,principal_name => 'lee'
+            ,principal_type => xs_acl.ptype_db
+        )
+    );
+end;
+-- the slash goes here
+*/
 whenever sqlerror continue
 -- the attachment type has a dependency
 DROP TYPE html_email_udt;
@@ -29,8 +55,8 @@ show errors
 --
 -- oh my, how embarrasing for Oracle. You cannot use compile directives in the definition
 -- of a user defined type object. You can use them just fine in the body, but not in
--- creating the type itself (type header?). In any case we must use the preprocessor directives
--- to create a STRING that we feed to execute immediate. We apply the preprocessor directives
+-- creating the type itself (type specification). In any case we must use the preprocessor directives
+-- to create a character string that we feed to execute immediate. We apply the preprocessor directives
 -- in the anonymous block that builds the string. Such a damn hack. Shame Oracle! Shame!
 -- At least the hack is only for deployment code. I can live with it.
 --
@@ -43,6 +69,7 @@ CREATE OR REPLACE TYPE html_email_udt AS OBJECT (
         A utility static function can return an HTML table from a query string or cursor
         for general use in addition to adding it to an email body.
     */
+-- See note in deployment file if you get ORA-24247 upon execution.
 /*
 MIT License
 
@@ -102,19 +129,18 @@ SOFTWARE.
 --            RETURN l_src;
 --        END;
 --    BEGIN
---        
 --        v_email := html_email_udt(
 --            p_to_list   => 'myname@google.com, yourname@yahoo.com'
 --            ,p_from_email_addr  => 'myname@myhost'
 --            ,p_reply_to         => 'donotreply@nohost'
 --            ,p_subject          => 'A sample email from html_email_udt'
 --        );
---        v_email.add_paragraph('We constructed and sent this email with html_email_udt.);
+--        v_email.add_paragraph('We constructed and sent this email with html_email_udt.');
 --        v_src := l_getcurs;
+--        v_email.add_to_body(html_email_udt.cursor_to_table(p_refcursor => v_src, p_caption => 'DBA Views'));
 --        -- we need to close it because we are going to open again.
 --        -- The called package may have closed it, but must be sure or nasty 
 --        -- bugs/caching can happen.
---        v_email.add_to_body(html_email_udt.cursor_to_table(p_refcursor => v_src, p_caption => 'DBA Views'));
 --        BEGIN
 --            CLOSE v_src;
 --        EXCEPTION WHEN invalid_cursor THEN NULL;
@@ -126,6 +152,7 @@ SOFTWARE.
 --            l_ctxId         ExcelGen.ctxHandle;
 --            l_sheet_handle  BINARY_INTEGER;
 --        BEGIN
+--            v_src := l_getcurs;
 --            l_ctxId := ExcelGen.createContext();
 --            l_sheet_handle := ExcelGen.addSheetFromCursor(l_ctxId, 'DBA Views', v_src, p_tabColor => 'green');
 --            BEGIN
@@ -136,7 +163,7 @@ SOFTWARE.
 --            v_email.add_attachment(p_file_name => 'dba_views.xlsx', p_blob_content => ExcelGen.getFileContent(l_ctxId));
 --            excelGen.closeContext(l_ctxId);
 --        END;
---        v_email.add_paragraph('<br><br>The attached spreadsheet should match what is in the html table above');
+--        v_email.add_paragraph('The attached spreadsheet should match what is in the html table above');
 --        v_email.send;
 --    END;
 --
@@ -270,7 +297,11 @@ $end
     MEMBER PROCEDURE add_paragraph(p_clob CLOB)
     IS
     BEGIN
-        body := '<p>'||p_clob||'<br><br>';
+        IF body IS NULL THEN
+            body := '<p>'||p_clob;
+        ELSE
+            body := body||'<br><br><p>'||p_clob;
+        END IF;
     END; -- add_paragraph
 
     MEMBER PROCEDURE add_to(p_to VARCHAR2)
@@ -403,7 +434,7 @@ $end
         -- 2) Call the transform method of that XMLType object instance passing the XSL XMLType object
         --    as an argument.
         -- 3) The result of the transform method is yet another XMLType object. Call the method
-        --    GetClobVal from that object which returns a CLOB
+        --    getClobVal from that object which returns a CLOB
         BEGIN
             v_html :=  DBMS_XMLGEN.GETXMLType(v_context, DBMS_XMLGEN.NONE).transform(v_table_xsl).getClobVal();
         EXCEPTION WHEN e_null_object_ref THEN 
@@ -414,8 +445,7 @@ $else
             DBMS_OUTPUT.put_line('cursor_to_table executed cursor that returned no rows. Returning NULL');
 $end
         END;
-
-        -- it can raise an error easily. Caller should handle.
+        -- it can easily raise a different error than we trapped. Caller should handle.
         RETURN v_html;
     END cursor_to_table;
 
@@ -478,7 +508,6 @@ $end
             END LOOP;
             UTL_SMTP.write_data(v_smtp, UTL_TCP.crlf); -- write one more crlf after blob attachment
         END;
-
 --
 -- start main procedure body
 --
@@ -495,10 +524,9 @@ $if $$use_app_parameter $then
     $else
             DBMS_OUTPUT.put_line('app_parameter.is_matching_database returned FALSE. Will return without sending mail');
     $end
-$end
             RETURN;
         END IF;
-
+$end
         IF arr_to.COUNT + arr_cc.COUNT + arr_bcc.COUNT = 0 THEN
             raise_application_error(-20835,'no recipients were provided before calling html_email_udt.send');
         END IF;
@@ -569,18 +597,18 @@ $end
         wp('<!doctype html>
 <html><head><title>'||subject||'</title></head>
 <body>');
-
         --
         -- the clob with the html the caller provided for the body. Use wc because CLOB needs to be done in chunks
         --
         wc(body); 
 
+        -- finish off the html and pad the end of the "part" with line endings per the rules
         w('</body></html>'||UTL_TCP.crlf); -- need extra crlf
 
         IF attachments.COUNT > 0 THEN
             FOR i IN 1..attachments.COUNT
             LOOP
-                w('--'||c_boundary); -- end the last multipart which may have just been the HTML body
+                w('--'||c_boundary); -- end the last multipart which may have just been the HTML document
                 IF attachments(i).clob_content IS NOT NULL THEN
                     w('Content-Type: text/plain');
                     w('Content-Transfer-Encoding: text/plain'); -- since it is CLOB, it is char data by definition
@@ -592,7 +620,6 @@ $end
                     w('Content-Disposition: attachment; filename="'||attachments(i).file_name||'"'||UTL_TCP.crlf); -- extra crlf
                     wb(attachments(i).blob_content);
                 END IF;
-
             END LOOP; -- end foreach attachment
         END IF;
 
@@ -622,7 +649,6 @@ $end
             RAISE;
 
     END; -- send
-
 END;
 /
 show errors

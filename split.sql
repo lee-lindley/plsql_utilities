@@ -118,6 +118,9 @@ IS
             ;
 --v_log app_log_udt := app_log_udt('TEST');
 BEGIN
+        IF p_s IS NULL THEN
+            RETURN v_arr; -- will be empty
+        END IF;
 --v_log.log_p(TO_CHAR(REGEXP_COUNT(p_s,v_regexp)));
         -- since our matched group may be a null string that regexp_substr returns before we are done, 
         -- we cannot rely on the condition that regexp_substr returns null to know we are done. 
