@@ -1,11 +1,8 @@
 whenever sqlerror exit failure
---ALTER SESSION SET plsql_code_type = NATIVE;
---ALTER SESSION SET plsql_optimize_level=3;
---
 --ALTER SESSION SET PLSQL_CCFLAGS='use_app_log:TRUE';
 CREATE OR REPLACE PACKAGE app_lob
 AUTHID CURRENT_USER
-AS
+IS
 /*
     This is all code you can find on the web or even in the Oracle documentation.
     Seems like Oracle should have put these in DBMS_LOB.
@@ -41,7 +38,7 @@ END app_lob;
 /
 show errors
 CREATE OR REPLACE PACKAGE BODY app_lob
-AS
+IS
     PROCEDURE blob_to_file(
          p_filename                 VARCHAR2
         ,p_directory                VARCHAR2
@@ -164,6 +161,7 @@ $end
             RAISE;
     END clob_to_blob
     ;
+
     FUNCTION file_to_blob(
         p_directory                 VARCHAR2
         ,p_filename                 VARCHAR2
@@ -220,4 +218,5 @@ $end
 END app_lob;
 /
 show errors
+-- it is invoker rights, so would not hurt anything to share it. 
 --GRANT EXECUTE ON app_lob TO PUBLIC;

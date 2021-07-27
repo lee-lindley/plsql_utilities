@@ -12,12 +12,12 @@
 /*
     NOTE: you must have priv to write to the network. This is a big subject. 
     Here is what I did as sysdba in order for my account (lee) to be able to write to 
-    port 25 on my Oracle server on RHL. Assuming you have an smtp server somewhere
-    other than your database server like most sane organizations, you will need 
-    the ACL entry for that host and the schema where you are deploying this. 
-    If not you will get:
+    port 25 on my the RedHat Linux server my Oracle database runs upon. 
+    Assuming you have an smtp server somewhere other than your database server 
+    like most sane organizations, you will need the ACL entry for that host 
+    and the schema where you are deploying this. If not you will get:
 
-    ORA-24247: network access denied by access control list (ACL)
+        ORA-24247: network access denied by access control list (ACL)
     
     when you try to send an email. This is true even though we are writing to localhost!
 
@@ -55,9 +55,9 @@ show errors
 --
 -- oh my, how embarrasing for Oracle. You cannot use compile directives in the definition
 -- of a user defined type object. You can use them just fine in the body, but not in
--- creating the type itself (type specification). In any case we must use the preprocessor directives
--- to create a character string that we feed to execute immediate. We apply the preprocessor directives
--- in the anonymous block that builds the string. Such a damn hack. Shame Oracle! Shame!
+-- creating the type itself (type specification). We will use the preprocessor directives
+-- to create a character string that we feed to execute immediate. Such a damn hack. 
+-- Shame Oracle! Shame!
 -- At least the hack is only for deployment code. I can live with it.
 --
 BEGIN
@@ -160,9 +160,12 @@ SOFTWARE.
 --            EXCEPTION WHEN invalid_cursor THEN NULL;
 --            END;
 --            ExcelGen.setHeader(l_ctxId, l_sheet_handle, p_frozen => TRUE);
+--
 --            v_email.add_attachment(p_file_name => 'dba_views.xlsx', p_blob_content => ExcelGen.getFileContent(l_ctxId));
+--
 --            excelGen.closeContext(l_ctxId);
 --        END;
+--
 --        v_email.add_paragraph('The attached spreadsheet should match what is in the html table above');
 --        v_email.send;
 --    END;
@@ -200,6 +203,7 @@ $end
     ,MEMBER PROCEDURE send
     ,MEMBER PROCEDURE add_paragraph(p_clob CLOB)
     ,MEMBER PROCEDURE add_to_body(p_clob CLOB)
+    -- these take strings that can have multiple comma separated email addresses
     ,MEMBER PROCEDURE add_to(p_to VARCHAR2) 
     ,MEMBER PROCEDURE add_cc(p_cc VARCHAR2)
     ,MEMBER PROCEDURE add_bcc(p_bcc VARCHAR2)
@@ -366,8 +370,6 @@ $end
             ,p_blob_content
         );
     END; -- end add_attachment
-
-
 
     STATIC FUNCTION cursor_to_table(
         p_sql_string    CLOB            := NULL -- either the CLOB or the cursor must be null
