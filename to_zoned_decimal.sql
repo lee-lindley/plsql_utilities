@@ -31,7 +31,7 @@ AS
     v_number        NUMBER(32);
     is_negative     BOOLEAN := FALSE;
     v_out           VARCHAR2(100);
-    v_last_digit    BINARY_INTEGER;
+    v_last_digit    VARCHAR2(1);
     v_length        BINARY_INTEGER := p_length + NVL(p_digits_after_decimal,0);
 BEGIN
     IF p_length IS NULL -- provide 0 if you have everything after the decimal
@@ -53,25 +53,22 @@ BEGIN
         is_negative := TRUE;
         v_number := v_number * -1;
     END IF;
-    v_last_digit := MOD(v_number,10); -- remainder after divide (mod) by 10 is the right most digit
-    -- dont want a pesky sign in the string. Also trim off the leading space if any
     v_out := LTRIM(TO_CHAR(v_number, '999999999999999999999999999999999'));
     IF LENGTH(v_out) > v_length THEN
             raise_application_error(-20889,'number exceeds p_length+p_digits_after_decimal digits');
     END IF;
+    v_last_digit := SUBSTR(v_out,-1,1);
     v_out := SUBSTR(v_out,1,LENGTH(v_out)-1) -- get all but the right most digit
-        -- now put in a zoned decimal char for the right most digit. Use substr and the 
-        -- numeric value of the last digit as trickery to pull it out of a string rather 
-        -- than a nasty big case statement.
+        -- now put in a zoned decimal char for the right most digit. 
         -- In C we would use a little math between character values, but that is clunky in PL/SQL.
         -- This method will be more familiar to most database practitioners.
-        ||SUBSTR(CASE WHEN is_negative
+        ||TRANSLATE(v_last_digit
+                    ,'0123456789'               -- from one of these chars
+                    ,CASE WHEN is_negative      -- to corresponding char in here
                         THEN '}JKLMNOPQR'
                         ELSE '{ABCDEFGHI'
-                 END
-                 ,v_last_digit+1 -- 0-9 needs to be 1-10
-                 ,1
-                )
+                     END
+          )
     ;
     RETURN LPAD(v_out,v_length,'0');
 END to_zoned_decimal
