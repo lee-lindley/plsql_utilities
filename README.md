@@ -1,9 +1,16 @@
 # plsql_utilities
 
-A PL/SQL Utility Library
+An Oracle PL/SQL Utility Library
 
 Feel free to pick and choose, or just borrow code. Some of them you should keep my copyright
-per the MIT license, others are already public domain.
+per the MIT license, others are already public domain. Included are
+
+* Application Logging
+* Application Parameter Facility
+* HTML E-mail Construction and Transmission
+* Splitting of CSV Strings into Fields
+* Create Zoned Decimal Strings from Numbers
+* A few LOB Utilities
 
 # Content
 1. [install.sql](#installsql)
@@ -160,11 +167,14 @@ in the other files you deploy.
 An Object type for constructing and sending an HTML email, optionally with
 attachments. Although object attributes cannot be made private, you have 
 no need for them. The interface is through the methods: 
+
 ```sql
     CONSTRUCTOR FUNCTION html_email_udt(
-        p_to_list           CLOB DEFAULT NULL
-        ,p_cc_list          CLOB DEFAULT NULL
-        ,p_bcc_list         CLOB DEFAULT NULL
+        -- these take strings that can have multiple comma separated email addresses
+        p_to_list           VARCHAR2 DEFAULT NULL
+        ,p_cc_list          VARCHAR2 DEFAULT NULL
+        ,p_bcc_list         VARCHAR2 DEFAULT NULL
+        --
         ,p_from_email_addr  VARCHAR2 DEFAULT 'donotreply@bogus.com'
         ,p_reply_to         VARCHAR2 DEFAULT 'donotreply@bogus.com'
         ,p_smtp_server      VARCHAR2 DEFAULT 'localhost'
@@ -212,7 +222,9 @@ or use it for a different purpose. It is called by member method *add_table_to_b
     ) RETURN CLOB
 ```
 
-There is a nice example as a comment in the type definition which I reproduce here:
+There is a nice example as a comment in the type definition which I reproduce here using
+my actual test case values:
+
 ```sql
 DECLARE
     v_email         html_email_udt;
@@ -272,15 +284,37 @@ BEGIN
         EXCEPTION WHEN invalid_cursor THEN NULL;
         END;
         ExcelGen.setHeader(l_ctxId, l_sheet_handle, p_frozen => TRUE);
-        v_email.add_attachment(p_file_name => 'dba_views.xlsx', p_blob_content => ExcelGen.getFileContent(l_ctxId));
+    --------
+        v_email.add_attachment(
+            p_file_name     => 'dba_views.xlsx'
+            ,p_blob_content => ExcelGen.getFileContent(l_ctxId)
+        );
+    --------
         excelGen.closeContext(l_ctxId);
     END;
+
     v_email.add_paragraph('The attached spreadsheet should match what is in the html table above');
 --dbms_output.put_line(v_email.body);
-
     v_email.send;
 END;
 ```
+A snapshot from my email client follows. It is mentioned in the type definition comments
+about *cursor_to_table* that spaces in the column names will be munged to %020. I obviously forgot
+and the "View Name" column heading is jacked. The attachment opens in Excel as expected.
+
+ ![email snapshot](/images/email_snapshot.png)
+
+Note that the privs required to use *UTL_SMTP* and to
+enable access to a network port for your schema may require some 
+work from your DBA, and maybe the firewall and/or network team.
+There is some information in comments in the script about Access Control Lists
+for the network priv.
+
+The example shows using sendmail listening on port 25 on my local RHL database server (localhost),
+but you will likely need to use a company relay such as **smtp.mycompany.com**.
+The administrator of the relay may even need to authorize your database machine
+as a client. If the relay server complain about certificates, there is Oracle
+documentation about configuring them. I have not done so.
 
 ## split
 
@@ -307,13 +341,20 @@ FUNCTION split (
 
 ## to_zoned_decimal
 
-Format a number into a mainframe style Zoned Decimal. (example: 
-S9(7)V99 format 6.80 => '00000068{')
+Format a number into a mainframe style Zoned Decimal. The use case is producing a 
+fixed width text file to send to a mainframe. For example:
+
+Number: 6.80    
+Format: S9(7)V99     
+Result: '00000068{'    
 
 ```sql
 FUNCTION to_zoned_decimal(
     p_number                NUMBER
-    ,p_length               BINARY_INTEGER          -- S9(7)V99 then 7
-    ,p_digits_after_decimal BINARY_INTEGER := NULL  -- S9(7)V99 then 2
+    ,p_length               BINARY_INTEGER          -- S9(7)V99 use value 7
+    ,p_digits_after_decimal BINARY_INTEGER := NULL  -- S9(7)V99 use value 2
 ) RETURN VARCHAR2 DETERMINISTIC
 ```
+
+Converting from zoned decimal to number is a task you would perform with sqlldr or external tables.
+The sqlldr driver has a conversion type for zoned decimal ( ZONED(7,2) ??? ).

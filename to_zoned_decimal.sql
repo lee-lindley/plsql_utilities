@@ -60,8 +60,11 @@ BEGIN
             raise_application_error(-20889,'number exceeds p_length+p_digits_after_decimal digits');
     END IF;
     v_out := SUBSTR(v_out,1,LENGTH(v_out)-1) -- get all but the right most digit
-        -- now put in a zoned decimal char for the right most digit. Use substr and the value of the last
-        -- digit as trickery to pull it out rather than a nasty big case.
+        -- now put in a zoned decimal char for the right most digit. Use substr and the 
+        -- numeric value of the last digit as trickery to pull it out of a string rather 
+        -- than a nasty big case statement.
+        -- In C we would use a little math between character values, but that is clunky in PL/SQL.
+        -- This method will be more familiar to most database practitioners.
         ||SUBSTR(CASE WHEN is_negative
                         THEN '}JKLMNOPQR'
                         ELSE '{ABCDEFGHI'

@@ -12,7 +12,7 @@
 /*
     NOTE: you must have priv to write to the network. This is a big subject. 
     Here is what I did as sysdba in order for my account (lee) to be able to write to 
-    port 25 on my the RedHat Linux server my Oracle database runs upon. 
+    port 25 on the RedHat Linux server my Oracle database runs upon. 
     Assuming you have an smtp server somewhere other than your database server 
     like most sane organizations, you will need the ACL entry for that host 
     and the schema where you are deploying this. If not you will get:
@@ -55,7 +55,7 @@ show errors
 --
 -- oh my, how embarrasing for Oracle. You cannot use compile directives in the definition
 -- of a user defined type object. You can use them just fine in the body, but not in
--- creating the type itself (type specification). We will use the preprocessor directives
+-- creating the type itself (type specification). We will use the compile directives
 -- to create a character string that we feed to execute immediate. Such a damn hack. 
 -- Shame Oracle! Shame!
 -- At least the hack is only for deployment code. I can live with it.
@@ -131,8 +131,9 @@ SOFTWARE.
 --    BEGIN
 --        v_email := html_email_udt(
 --            p_to_list   => 'myname@google.com, yourname@yahoo.com'
---            ,p_from_email_addr  => 'myname@myhost'
+--            ,p_from_email_addr  => 'myname@mycompany.com'
 --            ,p_reply_to         => 'donotreply@nohost'
+--            ,p_smtp_server      => 'smtp.mycompany.com'
 --            ,p_subject          => 'A sample email from html_email_udt'
 --        );
 --        v_email.add_paragraph('We constructed and sent this email with html_email_udt.');
@@ -186,9 +187,9 @@ $if $$use_app_log $then
 $end
 ||q'[
     ,CONSTRUCTOR FUNCTION html_email_udt(
-        p_to_list           CLOB DEFAULT NULL
-        ,p_cc_list          CLOB DEFAULT NULL
-        ,p_bcc_list         CLOB DEFAULT NULL
+        p_to_list           VARCHAR2 DEFAULT NULL
+        ,p_cc_list          VARCHAR2 DEFAULT NULL
+        ,p_bcc_list         VARCHAR2 DEFAULT NULL
         ,p_from_email_addr  VARCHAR2 DEFAULT 'donotreply@bogus.com'
         ,p_reply_to         VARCHAR2 DEFAULT 'donotreply@bogus.com'
         ,p_smtp_server      VARCHAR2 DEFAULT 'localhost'
@@ -261,15 +262,16 @@ $end
         ,p_caption      VARCHAR2        := NULL
     ) RETURN CLOB
 );
-]';
-END;
+]'; -- end execute immediate
+END; -- end anonymous block
 /
+show errors
 CREATE OR REPLACE TYPE BODY html_email_udt AS
 
     CONSTRUCTOR FUNCTION html_email_udt(
-        p_to_list           CLOB DEFAULT NULL
-        ,p_cc_list          CLOB DEFAULT NULL
-        ,p_bcc_list         CLOB DEFAULT NULL
+        p_to_list           VARCHAR2 DEFAULT NULL
+        ,p_cc_list          VARCHAR2 DEFAULT NULL
+        ,p_bcc_list         VARCHAR2 DEFAULT NULL
         ,p_from_email_addr  VARCHAR2 DEFAULT 'donotreply@bogus.com'
         ,p_reply_to         VARCHAR2 DEFAULT 'donotreply@bogus.com'
         ,p_smtp_server      VARCHAR2 DEFAULT 'localhost'
@@ -282,21 +284,22 @@ $end
     RETURN SELF AS RESULT
     IS
     BEGIN
-        arr_to := split(p_to_list,p_strip_dquote => 'N');
-        arr_cc := split(p_cc_list,p_strip_dquote => 'N');
-        arr_bcc := split(p_bcc_list,p_strip_dquote => 'N');
+        -- split will return an initialized, empty collection object if the string is null
+        arr_to          := split(p_to_list,p_strip_dquote => 'N');
+        arr_cc          := split(p_cc_list,p_strip_dquote => 'N');
+        arr_bcc         := split(p_bcc_list,p_strip_dquote => 'N');
         from_email_addr := p_from_email_addr;
-        reply_to := p_reply_to;
-        smtp_server := p_smtp_server;
-        subject := p_subject;
-        body := p_body;
-        attachments := arr_html_email_attachment_udt();
+        reply_to        := p_reply_to;
+        smtp_server     := p_smtp_server;
+        subject         := p_subject;
+        body            := p_body;
+        attachments     := arr_html_email_attachment_udt();
 $if $$use_app_log $then
-        log := NVL(p_log, app_log_udt('HTML_EMAIL_UDT'));
+        log             := NVL(p_log, app_log_udt('HTML_EMAIL_UDT'));
 $end
         RETURN;
-    END 
-    ; -- end constructor html_email_udt
+    END; -- end constructor html_email_udt
+
     MEMBER PROCEDURE add_to_body(p_clob CLOB)
     IS
     BEGIN
@@ -310,7 +313,9 @@ $end
         IF body IS NULL THEN
             body := '<p>'||p_clob;
         ELSE
-            body := body||'<br><br><p>'||p_clob;
+            body := body||'<br>
+<br><p>'
+                        ||p_clob;
         END IF;
     END; -- add_paragraph
 
@@ -383,7 +388,8 @@ $end
         ,p_caption      VARCHAR2        := NULL
     ) IS
     BEGIN
-        body := body
+        body := body||'<br>
+<br>'
             ||html_email_udt.cursor_to_table(p_sql_string => p_sql_string, p_refcursor => p_refcursor, p_caption => p_caption);
     END; -- end add_table_to_body
 
@@ -446,13 +452,13 @@ $end
         ELSE
             v_table_xsl := XMLType(regexp_replace(c_xsl, '__CAPTION__', '<caption>'||p_caption||'</caption>'));
         END IF;
-        -- so we have a context that contains an open cursor and we have an xsl style sheet to 
-        -- be used to transform it. Sequence here is
-        -- 1) Get an XMLType object from the context.
-        -- 2) Call the transform method of that XMLType object instance passing the XSL XMLType object
-        --    as an argument.
-        -- 3) The result of the transform method is yet another XMLType object. Call the method
-        --    getClobVal from that object which returns a CLOB
+        -- we have a context that contains an open cursor and we have an xsl style sheet to 
+        -- transform it. Sequence here is
+        --     1) Get an XMLType object from the context.
+        --     2) Call the transform method of that XMLType object instance passing the XSL XMLType object
+        --        as an argument.
+        --     3) The result of the transform method is yet another XMLType object. Call the method
+        --        getClobVal from that object which returns a CLOB
         BEGIN
             v_html :=  DBMS_XMLGEN.GETXMLType(v_context, DBMS_XMLGEN.NONE).transform(v_table_xsl).getClobVal();
         EXCEPTION WHEN e_null_object_ref THEN 
@@ -469,12 +475,11 @@ $end
 
     MEMBER PROCEDURE send 
     IS
-        v_smtp          UTL_SMTP.connection;
-        v_myhostname    VARCHAR2(255);
-        v_recipient_count   BINARY_INTEGER;
+        v_smtp              UTL_SMTP.connection;
+        v_myhostname        VARCHAR2(255);
 
-        c_chunk_size    CONSTANT INTEGER := 57;
-        c_boundary      CONSTANT VARCHAR2(50) := '---=*jkal8KKzbrgLN24z#wq*=';
+        c_chunk_size        CONSTANT INTEGER := 57;
+        c_boundary          CONSTANT VARCHAR2(50) := '---=*jkal8KKzbrgLN24z#wq*=';
 
         --
         -- convenience procedures rather than spelling everything out each time we 
@@ -508,6 +513,7 @@ $end
             w(UTL_TCP.crlf); -- two crlf after clob attachment
         END;
 
+        -- write blob.
         -- https://oracle-base.com/articles/misc/email-from-oracle-plsql#attachment
         PROCEDURE wb(l_b BLOB) IS
         BEGIN
@@ -563,17 +569,14 @@ $end
         LOOP
             UTL_SMTP.rcpt(v_smtp, arr_to(i));
         END LOOP;
-        v_recipient_count := arr_to.COUNT;
         FOR i IN 1..arr_cc.COUNT
         LOOP
             UTL_SMTP.rcpt(v_smtp, arr_cc(i));
         END LOOP;
-        v_recipient_count := v_recipient_count + arr_cc.COUNT;
         FOR i IN 1..arr_bcc.COUNT
         LOOP
             UTL_SMTP.rcpt(v_smtp, arr_bcc(i));
         END LOOP;
-        v_recipient_count := v_recipient_count + arr_bcc.COUNT;
 
         --
         -- Now open for write the main data stream
@@ -650,8 +653,11 @@ $end
         UTL_SMTP.quit(v_smtp);
 
 $if $$use_app_log $then
-        log.log_p('html mail sent to '||TO_CHAR(v_recipient_count)||' recipients'
-            ||CASE WHEN attachments.COUNT > 0 THEN ' with '||TO_CHAR(attachments.COUNT)||' attachments' END
+        log.log_p('html mail sent to '||TO_CHAR(arr_to.COUNT + arr_cc.COUNT + arr_bcc.COUNT)
+                        ||' recipients'
+                        ||CASE WHEN attachments.COUNT > 0 
+                               THEN ' with '||TO_CHAR(attachments.COUNT)||' attachments' 
+                          END
         );
 $end
         EXCEPTION WHEN OTHERS THEN
