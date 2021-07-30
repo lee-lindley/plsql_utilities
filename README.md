@@ -24,7 +24,21 @@ per the MIT license, others are already public domain. Included are
 
 ## install.sql
 
-Runs each of these scripts in correct order and with compile options.
+Runs each of these scripts in correct order and with compile options. At the top is the line:
+
+    ALTER SESSION SET PLSQL_CCFLAGS='use_app_log:TRUE,use_app_parameter:TRUE,use_mime_type:TRUE';
+
+If you do not want to install the package *mime_type* as part of *html_email_udt*, set that parameter
+to FALSE.
+
+If you do not want to install *app_parameter*, both set that value to FALSE and also comment
+out the call to '@app_parameter.sql'.
+
+If you do not want to install *app_log*, both set that value to FALSE and also comment 
+out the call to '@app_log.sql'.
+
+If you are not useing any of those three, you can simply run the individual script without
+setting *PLSQL_CCFLAGS*. The default value of the compile directives is FALSE.
 
 ## app_lob
 
@@ -165,8 +179,18 @@ in the other files you deploy.
 ## html_email_udt
 
 An Object type for constructing and sending an HTML email, optionally with
-attachments. Although object attributes cannot be made private, you have 
-no need for them. The interface is through the methods: 
+attachments. 
+
+The attachment *mime type* values can be looked up from the file name extension
+using the package *mime_type* that is optionally installed along with the object.
+If you choose not to install that package, it will default to **text/plain** for
+CLOB attachments and **application/octet-stream** for BLOBs. Honestly, modern email clients on
+MS Windows seem to pay attention almost exclusively to the file extension, so I
+do not think you will suffer any harm by sticking with these two defaults. Nevertheless,
+we provide a way to do it right, and that is the default behavior if you use *install.sql*.
+
+Although object attributes cannot be made private, you have 
+no need for them. The object interface is through the methods: 
 
 ```sql
     CONSTRUCTOR FUNCTION html_email_udt(
@@ -200,6 +224,10 @@ no need for them. The interface is through the methods:
         p_file_name     VARCHAR2
         ,p_clob_content CLOB DEFAULT NULL
         ,p_blob_content BLOB DEFAULT NULL
+        -- looks up the mime type from the file_name extension
+    )
+    ,MEMBER PROCEDURE add_attachment( -- just in case you need fine control
+        p_attachment    html_email_attachment_udt
     )
 ```
 
@@ -211,11 +239,10 @@ or use it for a different purpose. It is called by member method *add_table_to_b
     ,STATIC FUNCTION cursor_to_table(
         -- pass in a string. 
         -- Unfortunately any tables that are not in your schema 
-        -- will need to be fully qualified with the schema name. The open cursor version does
-        -- not share this issue.
+        -- will need to be fully qualified with the schema name.
         p_sql_string    CLOB            := NULL
         -- pass in an open cursor. This is better for my money.
-        ,p_refcursor     SYS_REFCURSOR  := NULL
+        ,p_refcursor    SYS_REFCURSOR  := NULL
         -- if provided, will be the caption on the table, generally centered on the top of it
         -- by most renderers.
         ,p_caption      VARCHAR2        := NULL
@@ -223,7 +250,7 @@ or use it for a different purpose. It is called by member method *add_table_to_b
 ```
 
 There is a nice example as a comment in the type definition which I reproduce here using
-my actual test case values:
+my test case values:
 
 ```sql
 DECLARE
@@ -299,7 +326,7 @@ BEGIN
 END;
 ```
 A snapshot from my email client follows. It is mentioned in the type definition comments
-about *cursor_to_table* that spaces in the column names will be munged to %020. I obviously forgot
+about *cursor_to_table* that spaces in the column names will be munged to _x020_. I obviously forgot
 and the "View Name" column heading is jacked. The attachment opens in Excel as expected.
 
  ![email snapshot](/images/email_snapshot.png)
@@ -320,23 +347,32 @@ documentation about configuring them. I have not done so.
 
 A function to split a comma separated value string that follows RFC4180 
 into an array of strings.
-(See https://www.loc.gov/preservation/digital/formats/fdd/fdd000323.shtml)
 
-Although it is overkill for the most common use cases, it handles everything the 
-RFC describes with respect to quoting and is not limited to comma as a separator.
-In particular if you have CSV records from Microsoft Excel, this will parse them
-correctly even when they have embedded separator characters in the values. The
-problem turned out to be much more complex than I thought it would be when I started.
+Treat input string p_s as following the Comma Separated Values (csv) format 
+(not delimited, but separated) and break it into an array of strings (fields) 
+returned to the caller. This is overkill for the most common case
+of simple separated strings that do not contain the separator char and are 
+not quoted, but if they are double quoted fields, this will handle them 
+appropriately including the quoting of " within the field.
+
+We comply with RFC4180 on CSV format (for what it is worth) while also 
+handling the mentioned common variants like backwacked quotes and 
+backwacked separators in non-double quoted fields that Excel produces.
+
+See https://www.loc.gov/preservation/digital/formats/fdd/fdd000323.shtml
+
+The problem turned out to be much more complex than I thought it would be when I started.
 If you like playing with regular expressions, take a gander and tell me if you can 
 do better. (really! I like to learn.)
 
 ```sql
 FUNCTION split (
-         p_s            VARCHAR2
-        ,p_separator    VARCHAR2    DEFAULT ','
-        ,p_keep_nulls   VARCHAR2    DEFAULT 'N'
-        ,p_strip_dquote VARCHAR2    DEFAULT 'Y' -- also "unquotes" \" and "" pairs within a double quotes string to "
+    p_s             VARCHAR2
+    ,p_separator    VARCHAR2    DEFAULT ','
+    ,p_keep_nulls   VARCHAR2    DEFAULT 'N'
+    ,p_strip_dquote VARCHAR2    DEFAULT 'Y' -- also "unquotes" \" and "" pairs within a double quotes string to "
 ) RETURN arr_varchar2_udt
+-- when p_s IS NULL returns initialized collection with COUNT=0
 ```
 
 ## to_zoned_decimal
@@ -350,11 +386,11 @@ Result: '00000068{'
 
 ```sql
 FUNCTION to_zoned_decimal(
-    p_number                NUMBER
-    ,p_length               BINARY_INTEGER          -- S9(7)V99 use value 7
-    ,p_digits_after_decimal BINARY_INTEGER := NULL  -- S9(7)V99 use value 2
+    p_number                    NUMBER
+    ,p_digits_before_decimal    BINARY_INTEGER          -- characteristic S9(7)V99 then 7
+    ,p_digits_after_decimal     BINARY_INTEGER := NULL  -- mantissa       S9(7)V99 then 2
 ) RETURN VARCHAR2 DETERMINISTIC
 ```
 
-Converting from zoned decimal to number is a task you would perform with sqlldr or external tables.
+Converting from zoned decimal string to number is a task you would perform with sqlldr or external tables.
 The sqlldr driver has a conversion type for zoned decimal ( ZONED(7,2) ??? ).
