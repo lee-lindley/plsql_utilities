@@ -5,9 +5,9 @@ An Oracle PL/SQL Utility Library
 Feel free to pick and choose, or just borrow code. Some of them you should keep my copyright
 per the MIT license, others are already public domain. Included are
 
+* HTML E-mail Construction and Transmission Including Attachments
 * Application Logging
 * Application Parameter Facility
-* HTML E-mail Construction and Transmission
 * Splitting of CSV Strings into Fields
 * Create Zoned Decimal Strings from Numbers
 * A few LOB Utilities
@@ -37,8 +37,8 @@ out the call to '@app_parameter.sql'.
 If you do not want to install *app_log*, both set that value to FALSE and also comment 
 out the call to '@app_log.sql'.
 
-If you are not useing any of those three, you can simply run the individual script without
-setting *PLSQL_CCFLAGS*. The default value of the compile directives is FALSE.
+If you are not using any of those three, you can simply run the individual script without
+setting *PLSQL_CCFLAGS* as the default value of any unset compile directives is FALSE.
 
 ## app_lob
 
@@ -104,7 +104,7 @@ There is a static procedure *purge_old* for pruning old log records that you can
 It uses a method that swaps a synonym between two base tables so that it does not interrupt 
 ongoing log writes.
 
-In addition to the underlying implementation tables there are three views:
+In addition to the underlying implementation tables, there are three views:
 
 * app_log_base_v 
 points to the base log table that is currently written to
@@ -204,7 +204,8 @@ no need for them. The object interface is through the methods:
         ,p_smtp_server      VARCHAR2 DEFAULT 'localhost'
         ,p_subject          VARCHAR2 DEFAULT NULL
         ,p_body             CLOB DEFAULT NULL
-        ,p_log              app_log_udt DEFAULT NULL -- optional at compile time
+        -- compile time decision whether attribute 'log' is included
+        ,p_log              app_log_udt DEFAULT NULL 
     ) RETURN SELF AS RESULT
     ,MEMBER PROCEDURE send
     ,MEMBER PROCEDURE add_paragraph(p_clob CLOB)
@@ -326,7 +327,7 @@ BEGIN
 END;
 ```
 A snapshot from my email client follows. It is mentioned in the type definition comments
-about *cursor_to_table* that spaces in the column names will be munged to _x020_. I obviously forgot
+about *cursor_to_table* that spaces in the column names will be munged to _x0020_. I obviously forgot
 and the "View Name" column heading is jacked. The attachment opens in Excel as expected.
 
  ![email snapshot](/images/email_snapshot.png)
@@ -381,7 +382,8 @@ Format a number into a mainframe style Zoned Decimal. The use case is producing 
 fixed width text file to send to a mainframe. For example:
 
 Number: 6.80    
-Format: S9(7)V99     
+Format: S9(7)V99   
+Arguments: p_number=>6.8, p_digits_befoe_decimal=>7, p_digits_after_decimal=>2   
 Result: '00000068{'    
 
 ```sql

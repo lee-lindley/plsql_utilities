@@ -1292,7 +1292,7 @@ $end
     -- to format the results a certain way, do so in the query. Also give 
     -- column aliases for the table column headers to look nice.
     -- Beware to not use spaces in the column name aliases as 
-    -- something munges them with _x020_.
+    -- something munges them with _x0020_.
     --
     -- Example:
     --     l_clob := html_email_udt.cursor_to_table(
