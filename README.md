@@ -26,23 +26,27 @@ per the MIT license, others are already public domain. Included are
 
 Runs each of these scripts in correct order and with compile options. At the top is the line:
 
-    ALTER SESSION SET PLSQL_CCFLAGS='use_app_log:TRUE,use_app_parameter:TRUE,use_mime_type:TRUE';
+    ALTER SESSION SET PLSQL_CCFLAGS='use_app_log:TRUE,use_app_parameter:TRUE,use_mime_type:TRUE,use_split:TRUE';
 
-If you do not want to install the package *mime_type* as part of *html_email_udt*, set that parameter
-to FALSE.
+If you do not want to install the package *mime_type* as part of *html_email_udt*, set that
+compile directive to FALSE.
 
-If you do not want to install *app_parameter*, both set that value to FALSE and also comment
-out the call to '@app_parameter.sql'.
+If you do not want to install the Function *split*, set that compile directive to FALSE and
+comment out the call to '@split.sql'.
 
-If you do not want to install *app_log*, both set that value to FALSE and also comment 
-out the call to '@app_log.sql'.
+If you do not want to install *app_parameter*, set that compile directive to FALSE and
+comment out the call to '@app_parameter.sql'.
 
-If you are not using any of those three, you can simply run the individual script without
-setting *PLSQL_CCFLAGS* as the default value of any unset compile directives is FALSE.
+If you do not want to install *app_log*, set that compile directive to FALSE and 
+comment out the call to '@app_log.sql'.
+
+If you are not using any of those four, you can simply run the individual script without
+setting *PLSQL_CCFLAGS* as the default value of any unset compile directives is NULL
+which we handle correctly.
 
 ## app_lob
 
-Several LOB functions and procedures that should be in *DBMS_LOB*. The names are description enough.
+Several LOB functions and procedures that should be in *DBMS_LOB* IMHO. The names are description enough.
 
 - file_to_blob
 ```sql
@@ -89,9 +93,9 @@ it (or something like it) is indispensable for debugging and development.
 Example:
 ```sql
     DECLARE
-        -- instantiate an object instance for app_name 'bnft' which will automatically
+        -- instantiate an object instance for app_name 'MY APP' which will automatically
         -- create the app_log_app entry if it does not exist
-        v_log_obj   app_log_udt := app_log_udt('bnft');
+        v_log_obj   app_log_udt := app_log_udt('my app');
     BEGIN
         -- log a message for our app
         v_log_obj.log('whatever my message: '||sqlerrm);
@@ -106,11 +110,11 @@ ongoing log writes.
 
 In addition to the underlying implementation tables, there are three views:
 
-* app_log_base_v 
+* app_log_base_v   
 points to the base log table that is currently written to
-* app_log_v 
+* app_log_v   
 joins on *app_id* to include the *app_name* string you provided to the constructor
-* app_log_tail_v 
+* app_log_tail_v   
 does the same as app_log_v except that it grabs only the most recent 20 records
 and adds an elapsed time between log record entries. Useful for seeing how
 long operations take.  Example:
@@ -139,36 +143,40 @@ application configuration information, and database instance specific settings (
 might be important to differentiate between production and test environments).
 
 The standalone function *get_app_parameter* uses RESULT_CACHE with the intent of being
-fast in a database with a lot of activity where many different programs use the facility.
-For many that will be overkill. It returns NULL if the parameter name does not exist in the table.
+fast in a database with many different programs using the facility often.
+That may be overkill for your scenario, but it doesn't hurt anything.
+It returns NULL if the parameter name does not exist in the table.
 
 ```sql
     FUNCTION get_app_parameter(p_param_name VARCHAR2) RETURN VARCHAR2 RESULT_CACHE
 ```
 
 Package *app_parameter* provides procedures for inserting and "end dating" records. A 
-logical update performs both operations. Grants to this package may well be different than 
-those to get the parameter values. The package provides the following public subprograms:
+logical update with *create_or_replace* performs both operations. Grants to this package 
+may well be different than those to *get* the parameter values.
+The package provides the following public subprograms:
 
 ```sql
-    PROCEDURE end_app_parameter(p_param_name VARCHAR2); -- probably very seldom used to get rid of one
+    PROCEDURE end_app_parameter(p_param_name VARCHAR2); -- likely seldom used, get rid of a parameter
+    --
     -- both inserts and updates
+    --
     PROCEDURE create_or_replace(p_param_name VARCHAR2, p_param_value VARCHAR2);
 
     -- these are specialized for a scenario where production data is cloned to a test system 
     -- and you do not want the parameters from production used to do bad things in the test system
-    -- Obscure and probably not useful to you.
+    -- before you get a chance to update them. Obscure and probably not useful to you.
     FUNCTION is_matching_database RETURN BOOLEAN;
     FUNCTION get_database_match RETURN VARCHAR2;
     PROCEDURE set_database_match; -- do this after updating the other app_parameters following a db refresh from prod
 ```
 
-The implemenation includes two triggers that attempt to ensure that noone does invalid
+The implemenation includes two triggers to ensure that noone does invalid
 updates or deletes rather than using the procedures that "end date" existing records. These
 also add the userid and timestamp for new records that do not have values provided.
 Writes to the table are rare and this kind of control is likely overkill, but it is nice to be able to
-tell an auditor that you have this control and history on an important table that you can
-likely update in production without a code promotion.
+tell an auditor that you have this control and change history on an important table that you will
+likely want to be able to update in production without a code promotion.
 
 ## arr_varchar2_udt
 
@@ -182,7 +190,7 @@ An Object type for constructing and sending an HTML email, optionally with
 attachments. 
 
 The attachment *mime type* values can be looked up from the file name extension
-using the package *mime_type* that is optionally installed along with the object.
+using the package *mime_type_pkg* that is optionally installed along with the object.
 If you choose not to install that package, it will default to **text/plain** for
 CLOB attachments and **application/octet-stream** for BLOBs. Honestly, modern email clients on
 MS Windows seem to pay attention almost exclusively to the file extension, so I
@@ -226,9 +234,10 @@ no need for them. The object interface is through the methods:
         ,p_clob_content CLOB DEFAULT NULL
         ,p_blob_content BLOB DEFAULT NULL
         -- looks up the mime type from the file_name extension
+        -- or uses defaults if $$mime_type is not TRUE
     )
     ,MEMBER PROCEDURE add_attachment( -- just in case you need fine control
-        p_attachment    html_email_attachment_udt
+        p_attachment    email_attachment_udt
     )
 ```
 
@@ -250,7 +259,7 @@ or use it for a different purpose. It is called by member method *add_table_to_b
     ) RETURN CLOB
 ```
 
-There is a nice example as a comment in the type definition which I reproduce here using
+There is a nice example as a comment in the type definition reproduced here using
 my test case values:
 
 ```sql
@@ -362,7 +371,7 @@ backwacked separators in non-double quoted fields that Excel produces.
 
 See https://www.loc.gov/preservation/digital/formats/fdd/fdd000323.shtml
 
-The problem turned out to be much more complex than I thought it would be when I started.
+The problem turned out to be much more complex than I thought when starting the work.
 If you like playing with regular expressions, take a gander and tell me if you can 
 do better. (really! I like to learn.)
 

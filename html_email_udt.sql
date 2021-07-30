@@ -1,12 +1,13 @@
 -- REQUIRES: split
---      if you do not want to deploy mine, deploy your own or create a local
---      static function.
+--      if you do not want to deploy mine, set use_split to FALSE
+--      and we will use a simpler function internal to the type.
 -- REQUIRES: arr_varchar2_udt
 --      If you have your own you can easily substitute it in the code yourself.
+--          Otherwise, deploy the one provided.
 --
 -- We optionally use app_parameter and app_log based on compile directives:
 -- We optionally deploy and use a package named mime_type.
---ALTER SESSION SET PLSQL_CCFLAGS='use_app_log:TRUE,use_app_parameter:TRUE,use_mime_type:TRUE';
+--ALTER SESSION SET PLSQL_CCFLAGS='use_app_log:TRUE,use_app_parameter:TRUE,use_mime_type:TRUE,use_split:TRUE';
 --
 BEGIN
 $if $$use_app_parameter $then
@@ -24,8 +25,15 @@ $if $$use_mime_type $then
 $else
     DBMS_OUTPUT.put_line('use_mime_type is FALSE');
 $end
+$if $$use_split $then
+    DBMS_OUTPUT.put_line('use_split is TRUE');
+$else
+    DBMS_OUTPUT.put_line('use_split is FALSE');
+$end
 END;
 /
+-- Personal preference. comment these out if your DBA complains or
+-- if you have an issue with the limits for amount of native code
 ALTER SESSION SET plsql_code_type = NATIVE;
 ALTER SESSION SET plsql_optimize_level=3;
 --
@@ -41,6 +49,8 @@ ALTER SESSION SET plsql_optimize_level=3;
     
     when you try to send an email. This is true even though we are writing 
     to localhost!
+
+    port 25 was open in my RHL firewalld for outgoing. YMMV.
 
 begin
     dbms_network_acl_admin.append_host_ace(
@@ -60,30 +70,33 @@ whenever sqlerror continue
 -- the attachment type has a dependency
 DROP TYPE html_email_udt;
 prompt ok if type drop failed for not exists
-DROP TYPE arr_html_email_attachment_udt;
+DROP TYPE arr_email_attachment_udt;
 prompt ok if type drop failed for not exists
 whenever sqlerror exit failure
+--
+prompt Beginning anonymous block for mime_type
+--
 BEGIN
     -- we use a trick with anonymous block and plsql compile directives
     -- to determine whether or not to deploy package mime_type
 $if $$use_mime_type $then
     EXECUTE IMMEDIATE q'[
-CREATE OR REPLACE PACKAGE mime_type IS
+CREATE OR REPLACE PACKAGE mime_type_pkg IS
     FUNCTION get(
-        p_filename              VARCHAR2
+        p_file_name             VARCHAR2
         ,p_use_binary_default   VARCHAR2 := NULL -- Y or not Y
     ) RETURN VARCHAR2;
     -- can provide extension with no dot, .extension, or full filename
     -- if extension not found or there is not one in your file name
     -- will return text/plain (or application/octet-stream if use_binary=Y)
-END mime_type;]';
+END mime_type_pkg;]';
     EXECUTE IMMEDIATE q'[
-CREATE OR REPLACE PACKAGE BODY mime_type IS
-    TYPE t_mime_types IS TABLE of VARCHAR2(100) INDEX BY VARCHAR2(24);
+CREATE OR REPLACE PACKAGE BODY mime_type_pkg IS
+    TYPE t_mime_types IS TABLE of VARCHAR2(120) INDEX BY VARCHAR2(24);
     g_mime_types    t_mime_types;
 
     FUNCTION get(
-        p_filename              VARCHAR2
+        p_file_name             VARCHAR2
         ,p_use_binary_default   VARCHAR2 := NULL -- Y,y or not 
     ) RETURN VARCHAR2
     IS
@@ -93,7 +106,7 @@ CREATE OR REPLACE PACKAGE BODY mime_type IS
                                         ELSE 'text/plain'
                                     END;
     BEGIN
-        v_extension := LOWER(REGEXP_SUBSTR(p_filename, '\.?([^.]+?)$',1,1,NULL,1));
+        v_extension := LOWER(REGEXP_SUBSTR(p_file_name, '\.?([^.]+?)$',1,1,NULL,1));
         -- txt, x.txt, and x.y.txt all work fine
         IF LENGTH(v_extension) > 20 THEN
             RETURN v_default; -- probably just a filename with no dot
@@ -504,6 +517,7 @@ CREATE OR REPLACE PACKAGE BODY mime_type IS
     g_mime_types('lvp') := 'audio/vnd.lucent.voice';
     g_mime_types('lwp') := 'application/vnd.lotus-wordpro';
     g_mime_types('lzh') := 'application/x-lzh-compressed';]'
+-- ran out of room in a literal but we can concatenate as a clob
 ||q'[
     g_mime_types('m13') := 'application/x-msmediaview';
     g_mime_types('m14') := 'application/x-msmediaview';
@@ -1094,21 +1108,68 @@ CREATE OR REPLACE PACKAGE BODY mime_type IS
     g_mime_types('zir') := 'application/vnd.zul';
     g_mime_types('zirz') := 'application/vnd.zul';
     g_mime_types('zmm') := 'application/vnd.handheld-entertainment+xml';
-END mime_type;]';
+END mime_type_pkg;]';
 $else
-    dbms_output.put_line('$$use_mime_type was not true so did not deploy package mime_type');
+    dbms_output.put_line('$$use_mime_type was not true so did not deploy package mime_type_pkg');
 $end
 END;
 /
-CREATE OR REPLACE TYPE html_email_attachment_udt AS OBJECT (
-         file_name      VARCHAR2(64)
-        ,clob_content   CLOB            -- give either clob or blob, not both
-        ,blob_content   BLOB
-        ,mime_type      VARCHAR2(120)
+--
+prompt create email_attachment_udt
+--
+CREATE OR REPLACE TYPE email_attachment_udt AS OBJECT (
+     file_name      VARCHAR2(64)
+    ,clob_content   CLOB            -- give either clob or blob, not both
+    ,blob_content   BLOB
+    ,mime_type      VARCHAR2(120)
+    ,CONSTRUCTOR FUNCTION email_attachment_udt(
+         p_file_name    VARCHAR2
+        ,p_clob_content CLOB
+        ,p_blob_content BLOB
+        ,p_mime_type    VARCHAR2 DEFAULT NULL -- allow constructor to determine
+    ) RETURN SELF AS RESULT
 );
 /
 show errors
-CREATE OR REPLACE TYPE arr_html_email_attachment_udt AS TABLE OF html_email_attachment_udt;
+--
+prompt create body email_attachment_udt
+--
+CREATE OR REPLACE TYPE BODY email_attachment_udt AS
+    CONSTRUCTOR FUNCTION email_attachment_udt(
+         p_file_name    VARCHAR2
+        ,p_clob_content CLOB
+        ,p_blob_content BLOB
+        ,p_mime_type    VARCHAR2 DEFAULT NULL -- allow constructor to determine
+    ) RETURN SELF AS RESULT
+    IS
+    BEGIN
+        IF p_clob_content IS NULL AND p_blob_content IS NULL THEN
+            raise_application_error(-20834,'both clob_content and blob_content were null');
+        ELSIF p_clob_content IS NOT NULL AND p_blob_content IS NOT NULL THEN
+            raise_application_error(-20834,'both clob_content and blob_content were NOT null');
+        END IF;
+        file_name       := p_file_name;
+        clob_content    := p_clob_content;
+        blob_content    := p_blob_content;
+        IF p_mime_type IS NOT NULL THEN
+            mime_type := p_mime_type;
+        ELSE
+$if $$use_mime_type $then
+            mime_type := mime_type_pkg.get(
+                p_file_name             => p_file_name
+                ,p_use_binary_default   => CASE WHEN p_blob_content IS NOT NULL THEN 'Y' END
+            );
+$else
+            mime_type := CASE WHEN p_blob_content IS NULL THEN 'text/plain' ELSE 'application/octet-stream' END;
+$end
+        END IF;
+        RETURN;
+    END;
+END;
+/
+show errors
+prompt create arr_email_attachment_udt
+CREATE OR REPLACE TYPE arr_email_attachment_udt AS TABLE OF email_attachment_udt;
 /
 show errors
 --
@@ -1118,6 +1179,8 @@ show errors
 -- the compile directives to create a character string that we feed to execute
 -- immediate. Such a damn hack. Shame Oracle! Shame!
 -- At least the hack is only for deployment code. I can live with it.
+--
+prompt begin anonymous block create html_email_udt spec
 --
 BEGIN
 EXECUTE IMMEDIATE q'[
@@ -1230,7 +1293,8 @@ SOFTWARE.
 --        v_email.send;
 --    END;
 --
-    attachments         arr_html_email_attachment_udt
+-- You have no need to muck with these object attributes directly. Use the methods.
+    attachments         arr_email_attachment_udt
     ,arr_to             arr_varchar2_udt
     ,arr_cc             arr_varchar2_udt
     ,arr_bcc            arr_varchar2_udt
@@ -1280,7 +1344,7 @@ $end
         -- looks up the mime type from the file_name extension
     )
     ,MEMBER PROCEDURE add_attachment( -- just in case you need fine control
-        p_attachment    html_email_attachment_udt
+        p_attachment    email_attachment_udt
     )
     --
     -- cursor_to_table() converts either an open sys_refcursor or a SQL query 
@@ -1324,12 +1388,23 @@ $end
         -- if provided, will be the caption on the table, generally centered 
         -- on the top of the table by most renderers.
         ,p_caption      VARCHAR2        := NULL
-    ) RETURN CLOB
+    ) RETURN CLOB]'
+$if $$use_split = FALSE OR $$use_split IS NULL $then
+||q'[
+    ,STATIC FUNCTION split(
+         p_s            VARCHAR2
+        ,p_delimiter    VARCHAR2 := ','
+    ) RETURN arr_varchar2_udt]'
+$end
+||q'[
 );
 ]'; -- end execute immediate
 END; -- end anonymous block
 /
 show errors
+--
+prompt html_email_udt body
+--
 CREATE OR REPLACE TYPE BODY html_email_udt AS
 
     CONSTRUCTOR FUNCTION html_email_udt(
@@ -1350,20 +1425,57 @@ $end
     BEGIN
         -- split will return an initialized, empty collection object if the 
         -- input string is null
+$if $$use_split $then
         arr_to          := split(p_to_list,p_strip_dquote => 'N');
         arr_cc          := split(p_cc_list,p_strip_dquote => 'N');
         arr_bcc         := split(p_bcc_list,p_strip_dquote => 'N');
+$else
+        arr_to          := html_email_udt.split(p_to_list);
+        arr_cc          := html_email_udt.split(p_cc_list);
+        arr_bcc         := html_email_udt.split(p_bcc_list);
+$end
         from_email_addr := p_from_email_addr;
         reply_to        := p_reply_to;
         smtp_server     := p_smtp_server;
         subject         := p_subject;
         body            := p_body;
-        attachments     := arr_html_email_attachment_udt();
+        attachments     := arr_email_attachment_udt();
 $if $$use_app_log $then
         log             := NVL(p_log, app_log_udt('HTML_EMAIL_UDT'));
 $end
         RETURN;
     END; -- end constructor html_email_udt
+$if $$use_split = FALSE OR $$use_split IS NULL $then
+    STATIC FUNCTION split(
+        p_s             VARCHAR2
+        ,p_delimiter    VARCHAR2 := ','
+    ) RETURN arr_varchar2_udt
+    IS
+        v_str       VARCHAR2(4000);
+        v_a         arr_varchar2_udt := arr_varchar2_udt();
+        v_occurence BINARY_INTEGER := 1;
+    BEGIN
+        LOOP
+            --
+            -- a little trickiness with regexp
+            -- The pattern starts with "([^,]+)" meaning we CAPTURE the string that does not have any 
+            -- comma chars in it. That syntax with the + means we need one or more not-comma chars
+            -- Then we match ",?" which is 0 or 1 of the delimiter chars (comma in this case). 
+            -- The delimiter (comma) is not the capture part so not returned in v_str, 
+            -- but the delimiter IS  skipped to reposition us for the next "occurrence" search.
+            -- Note that the ? (0 or 1) thingie means we will match the last address in the string too because
+            -- we do not have to have a delimiter at the end or maybe no delimiters at all. So this will match
+            -- all of (a,b,c) and (a,b,c,) and (a) or (a,) giving us 3, 3, 1, and 1 entries in the array.
+            --
+            v_str := REGEXP_SUBSTR(p_s, '([^'||p_delimiter||']+)'||p_delimiter||'?', 1, v_occurence, '', 1);
+            EXIT WHEN v_str IS NULL;
+            v_a.EXTEND;
+            v_a(v_a.COUNT) := TRIM(v_str);
+            v_occurence := v_occurence + 1; -- keep track of where we are in the string
+        END LOOP;
+        RETURN v_a;      
+    END;
+$end
 
     MEMBER PROCEDURE add_to_body(p_clob CLOB)
     IS
@@ -1389,7 +1501,11 @@ $end
     IS
         v_arr   arr_varchar2_udt;
     BEGIN
+$if $$use_split $then
         v_arr := split(p_to, p_strip_dquote => 'N');
+$else
+        v_arr := html_email_udt.split(p_to);
+$end
         FOR i IN 1..v_arr.COUNT
         LOOP
             arr_to.EXTEND;
@@ -1402,7 +1518,11 @@ $end
     IS
         v_arr   arr_varchar2_udt;
     BEGIN
+$if $$use_split $then
         v_arr := split(p_cc, p_strip_dquote => 'N');
+$else
+        v_arr := html_email_udt.split(p_cc);
+$end
         FOR i IN 1..v_arr.COUNT
         LOOP
             arr_cc.EXTEND;
@@ -1414,7 +1534,11 @@ $end
     IS
         v_arr   arr_varchar2_udt;
     BEGIN
+$if $$use_split $then
         v_arr := split(p_bcc, p_strip_dquote => 'N');
+$else
+        v_arr := html_email_udt.split(p_bcc);
+$end
         FOR i IN 1..v_arr.COUNT
         LOOP
             arr_bcc.EXTEND;
@@ -1436,23 +1560,16 @@ $end
     IS
     BEGIN
         add_attachment(
-            html_email_attachment_udt(
+            email_attachment_udt(
                 p_file_name
                 ,p_clob_content
                 ,p_blob_content
-$if $$use_mime_type $then
-                ,mime_type.get(p_file_name
-                    , CASE WHEN p_blob_content IS NOT NULL THEN 'Y' END
-                )
-$else
-                ,CASE WHEN p_blob_content IS NULL THEN 'text/plain' ELSE 'application/octet-stream' END
-$end
             )
         );
     END; -- end add_attachment
 
     MEMBER PROCEDURE add_attachment( 
-        p_attachment    html_email_attachment_udt
+        p_attachment    email_attachment_udt
     ) IS
     BEGIN
         IF p_attachment.clob_content IS NULL AND p_attachment.blob_content IS NULL THEN
@@ -1460,7 +1577,7 @@ $end
         ELSIF p_attachment.clob_content IS NOT NULL AND p_attachment.blob_content IS NOT NULL THEN
             raise_application_error(-20834,'both clob_content and blob_content in call to add_attachment were NOT null');
         END IF;
-        IF p_attachment.mime_type IS NULL THEN
+        IF p_attachment.mime_type IS NULL THEN -- user would have to TRY to get this condition
             raise_application_error(-20834,'attachment mime_type cannot be null');
         END IF;
         attachments.EXTEND;
