@@ -12,7 +12,7 @@ CREATE OR REPLACE FUNCTION split (
     ,p_separator    VARCHAR2    DEFAULT ','
     ,p_keep_nulls   VARCHAR2    DEFAULT 'N'
     ,p_strip_dquote VARCHAR2    DEFAULT 'Y' -- also unquotes \" and "" pairs within the field to just "
-) RETURN arr_varchar2_udt
+) RETURN arr_varchar2_udt DETERMINISTIC
 -- when p_s IS NULL, returns initialized collection with COUNT=0
 --
 /*

@@ -4,4 +4,4 @@
 whenever sqlerror exit failure
 CREATE OR REPLACE TYPE arr_varchar2_udt FORCE AS TABLE OF VARCHAR2(4000);
 /
-GRANT EXECUTE ON arr_varchar2_udt TO PUBLIC;
+--GRANT EXECUTE ON arr_varchar2_udt TO PUBLIC;

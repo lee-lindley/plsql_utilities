@@ -29,26 +29,31 @@ Runs each of these scripts in correct order and with compile options. At the top
     ALTER SESSION SET PLSQL_CCFLAGS='use_app_log:TRUE,use_app_parameter:TRUE,use_mime_type:TRUE,use_split:TRUE';
 
 If you do not want to install the package *mime_type* as part of *html_email_udt*, set that
-compile directive to FALSE.
+compile directive to FALSE. It is configured to not compile the package unless it is TRUE.
 
 If you do not want to install the Function *split*, set that compile directive to FALSE and
-comment out the call to '@split.sql'.
+comment out the call to "@split.sql".
 
 If you do not want to install *app_parameter*, set that compile directive to FALSE and
-comment out the call to '@app_parameter.sql'.
+comment out the call to "@&&subdir/install_app_parameter.sql".
 
 If you do not want to install *app_log*, set that compile directive to FALSE and 
-comment out the call to '@app_log.sql'.
+comment out the call to "@&&subdir/install_app_log.sql".
 
-If you are not using any of those four, you can simply run the individual script without
-setting *PLSQL_CCFLAGS* as the default value of any unset compile directives is NULL
-which we handle correctly.
+Those four require that you change the PLSQL_CCFLAGS compile directive settings.
+The others do not. You can simply comment out the call to run them, or run them directly.
+Each subdirectory has an "install.sql" file, but you might want to read through
+the corresponding "install_*.sql" file for configuration information and notes
+before running.
+
+There are three "define" statements for default values for the *html_email_udt* constructor
+that should also be set appropriately.
 
 ## app_lob
 
 Several LOB functions and procedures that should be in *DBMS_LOB* IMHO. The names are description enough.
 
-- file_to_blob
+- blob_to_file
 ```sql
     PROCEDURE blob_to_file(
         p_filename                 VARCHAR2
@@ -69,7 +74,7 @@ $end
     ) RETURN BLOB
     ;
 ```
-- blob_to_file
+- file_to_blob
 ```sql
     FUNCTION file_to_blob(
         p_directory                 VARCHAR2
@@ -89,6 +94,21 @@ log records to a table.  Since the autonomous transactions write independently,
 you can get status of the program before "succesful" completion that might be
 required for dbms_output. In addition to generally useful logging, 
 it (or something like it) is indispensable for debugging and development.
+```sql
+    -- member functions and procedures
+    ,CONSTRUCTOR FUNCTION app_log_udt(p_app_name VARCHAR2)
+        RETURN SELF AS RESULT
+    ,MEMBER PROCEDURE log(p_msg VARCHAR2)
+    ,MEMBER PROCEDURE log_p(p_msg VARCHAR2) -- prints with dbms_output and then logs
+    -- these are not efficient, but not so bad in an exception block.
+    -- You do not have to declare a variable to hold the instance because it is temporary
+    ,STATIC PROCEDURE log(p_app_name VARCHAR2, p_msg VARCHAR2) 
+    ,STATIC PROCEDURE log_p(p_app_name VARCHAR2, p_msg VARCHAR2) 
+    -- should only be used by the schema owner, but only trusted application accounts
+    -- are getting execute on this udt, so fine with me. If you are concerned, then
+    -- break this procedure out standalone
+    ,STATIC PROCEDURE purge_old(p_days NUMBER := 90)
+```
 
 Example:
 ```sql
@@ -98,9 +118,10 @@ Example:
         v_log_obj   app_log_udt := app_log_udt('my app');
     BEGIN
         -- log a message for our app
-        v_log_obj.log('whatever my message: '||sqlerrm);
-        -- same but also do DBMS_OUTPUT.PUT_LINE with the message too
-        v_log_obj.log_p('whatever my message: '||sqlerrm);
+        v_log_obj.log('START job xyz');
+        -- log_p does DBMS_OUTPUT.PUT_LINE with the message then logs it
+        v_log_obj.log_p('FAILED job xyz');
+        v_log_obj.log_p('sql error: '||sqlerrm);
     END;
 ```
 
@@ -117,7 +138,10 @@ joins on *app_id* to include the *app_name* string you provided to the construct
 * app_log_tail_v   
 does the same as app_log_v except that it grabs only the most recent 20 records
 and adds an elapsed time between log record entries. Useful for seeing how
-long operations take.  Example:
+long operations take. Also useful to grab the view definition SQL as a
+start for your own more sophisticated analytic query, such as for reporting
+job run times or other events.   
+Example:
 ```
 LEE@lee_pdb > select * from app_log_tail_v;
 TIME_STAMP    ELAPSED     LOGMSG                                                                        APP_NAME
@@ -142,6 +166,14 @@ Use for storing values that might otherwise be hard-coded such as email addresse
 application configuration information, and database instance specific settings (such as
 might be important to differentiate between production and test environments).
 
+Uses a common Data Warehouse pattern for "end dating" rather than deleting records,
+thus leaving an audit trail inside the main table.
+Only records with NULL *end_date* are "live" records.
+Records that are logically deleted have the *end_date* and *end_dated_by*
+fields populated. 
+A logical update consists of a logical delete as described above plus an insert with
+the fields *end_date* and *end_dated_by* set to NULL.
+
 The standalone function *get_app_parameter* uses RESULT_CACHE with the intent of being
 fast in a database with many different programs using the facility often.
 That may be overkill for your scenario, but it doesn't hurt anything.
@@ -157,7 +189,8 @@ may well be different than those to *get* the parameter values.
 The package provides the following public subprograms:
 
 ```sql
-    PROCEDURE end_app_parameter(p_param_name VARCHAR2); -- likely seldom used, get rid of a parameter
+    -- likely seldom used, get rid of a parameter without replacing it
+    PROCEDURE end_app_parameter(p_param_name VARCHAR2); 
     --
     -- both inserts and updates
     --
@@ -165,22 +198,22 @@ The package provides the following public subprograms:
 
     -- these are specialized for a scenario where production data is cloned to a test system 
     -- and you do not want the parameters from production used to do bad things in the test system
-    -- before you get a chance to update them. Obscure and probably not useful to you.
+    -- before you get a chance to update them. Obscure and perhaps not useful to you.
     FUNCTION is_matching_database RETURN BOOLEAN;
     FUNCTION get_database_match RETURN VARCHAR2;
-    PROCEDURE set_database_match; -- do this after updating the other app_parameters following a db refresh from prod
+    PROCEDURE set_database_match; -- do this after updating the other app_parameters following a db refresh from production
 ```
 
-The implemenation includes two triggers to ensure that noone does invalid
-updates or deletes rather than using the procedures that "end date" existing records. These
+The implemenation includes two triggers to prevent a well meaning coworker from performing invalid
+updates or deletes rather than using the procedures (or doing them correctly). These
 also add the userid and timestamp for new records that do not have values provided.
 Writes to the table are rare and this kind of control is likely overkill, but it is nice to be able to
 tell an auditor that you have this control and change history on an important table that you will
-likely want to be able to update in production without a code promotion.
+probably want to be able to update in production without a code promotion.
 
 ## arr_varchar2_udt
 
-User Defined Type Table of strings required for some of these utilities. If you already
+User Defined Type Table of VARCHAR2(4000) required for some of these utilities. If you already
 have one of these, by all means use it instead. Replace all references to *arr_varchar2_udt*
 in the other files you deploy.
 
@@ -195,10 +228,14 @@ If you choose not to install that package, it will default to **text/plain** for
 CLOB attachments and **application/octet-stream** for BLOBs. Honestly, modern email clients on
 MS Windows seem to pay attention almost exclusively to the file extension, so I
 do not think you will suffer any harm by sticking with these two defaults. Nevertheless,
-we provide a way to do it right, and that is the default behavior if you use *install.sql*.
+we provide a way to do it right, and that is the default behavior if you use "install.sql".
 
 Although object attributes cannot be made private, you have 
-no need for them. The object interface is through the methods: 
+no need for them. The object interface is through the methods.
+
+It is recommended that you edit "install.sql" before deploying to set suitable values 
+for *smtp_server*, *reply_to* and *from_email_addr* define variables. The DEFAULT values
+on the constructor parameters below are those currently defined in "install.sql".
 
 ```sql
     CONSTRUCTOR FUNCTION html_email_udt(
@@ -215,30 +252,55 @@ no need for them. The object interface is through the methods:
         -- compile time decision whether attribute 'log' is included
         ,p_log              app_log_udt DEFAULT NULL 
     ) RETURN SELF AS RESULT
-    ,MEMBER PROCEDURE send
-    ,MEMBER PROCEDURE add_paragraph(p_clob CLOB)
-    ,MEMBER PROCEDURE add_to_body(p_clob CLOB)
+    --
+    -- best explanation of method chaining rules I found is
+    -- https://stevenfeuersteinonplsql.blogspot.com/2019/09/object-type-methods-part-3.html
+    --
+    ,MEMBER PROCEDURE send(SELF IN html_email_udt) -- cannot be in/out if we allow chaining it.
+    ,MEMBER PROCEDURE add_paragraph(SELF IN OUT NOCOPY html_email_udt , p_clob CLOB)
+    ,MEMBER FUNCTION  add_paragraph(p_clob CLOB) RETURN html_email_udt
+    ,MEMBER PROCEDURE add_to_body(SELF IN OUT NOCOPY html_email_udt, p_clob CLOB)
+    ,MEMBER FUNCTION  add_to_body(p_clob CLOB) RETURN html_email_udt
     ,MEMBER PROCEDURE add_table_to_body( -- see cursor_to_table
-        p_sql_string    CLOB            := NULL
-        ,p_refcursor    SYS_REFCURSOR   := NULL
+        SELF IN OUT NOCOPY html_email_udt
+        ,p_sql_string   CLOB            := NULL
+        ,p_refcursor    SYS_REFCURSOR  := NULL
         ,p_caption      VARCHAR2        := NULL
     )
+    ,MEMBER FUNCTION  add_table_to_body( -- see cursor_to_table
+        p_sql_string    CLOB            := NULL
+        ,p_refcursor    SYS_REFCURSOR  := NULL
+        ,p_caption      VARCHAR2        := NULL
+    ) RETURN html_email_udt
     -- these take strings that can have multiple comma separated email addresses
-    ,MEMBER PROCEDURE add_to(p_to VARCHAR2) 
-    ,MEMBER PROCEDURE add_cc(p_cc VARCHAR2)
-    ,MEMBER PROCEDURE add_bcc(p_bcc VARCHAR2)
-    --
-    ,MEMBER PROCEDURE add_subject(p_subject VARCHAR2)
+    ,MEMBER PROCEDURE add_to(SELF IN OUT NOCOPY html_email_udt, p_to VARCHAR2) 
+    ,MEMBER FUNCTION  add_to(p_to VARCHAR2)  RETURN html_email_udt
+    ,MEMBER PROCEDURE add_cc(SELF IN OUT NOCOPY html_email_udt, p_cc VARCHAR2)
+    ,MEMBER FUNCTION  add_cc(p_cc VARCHAR2) RETURN html_email_udt
+    ,MEMBER PROCEDURE add_bcc(SELF IN OUT NOCOPY html_email_udt, p_bcc VARCHAR2)
+    ,MEMBER FUNCTION  add_bcc(p_bcc VARCHAR2) RETURN html_email_udt
+    ,MEMBER PROCEDURE add_subject(SELF IN OUT NOCOPY html_email_udt, p_subject VARCHAR2)
+    ,MEMBER FUNCTION  add_subject(p_subject VARCHAR2) RETURN html_email_udt
     ,MEMBER PROCEDURE add_attachment(
+        SELF IN OUT NOCOPY html_email_udt
+        ,p_file_name    VARCHAR2
+        ,p_clob_content CLOB DEFAULT NULL
+        ,p_blob_content BLOB DEFAULT NULL
+        -- looks up the mime type from the file_name extension
+    )
+    ,MEMBER FUNCTION  add_attachment(
         p_file_name     VARCHAR2
         ,p_clob_content CLOB DEFAULT NULL
         ,p_blob_content BLOB DEFAULT NULL
         -- looks up the mime type from the file_name extension
-        -- or uses defaults if $$mime_type is not TRUE
-    )
+    ) RETURN html_email_udt
     ,MEMBER PROCEDURE add_attachment( -- just in case you need fine control
-        p_attachment    email_attachment_udt
+        SELF IN OUT NOCOPY html_email_udt
+        ,p_attachment   email_attachment_udt
     )
+    ,MEMBER FUNCTION  add_attachment( -- just in case you need fine control
+        p_attachment    email_attachment_udt
+    ) RETURN html_email_udt
 ```
 
 As a bonus it provides a static function to convert a cursor or query string 
@@ -344,14 +406,39 @@ and the "View Name" column heading is jacked. The attachment opens in Excel as e
 Note that the privs required to use *UTL_SMTP* and to
 enable access to a network port for your schema may require some 
 work from your DBA, and maybe the firewall and/or network team.
-There is some information in comments in the script about Access Control Lists
-for the network priv.
+There is some information in comments in "html_email_udt/install_html_email_udt.sql"
+about Access Control Lists for the network priv.
 
 The example shows using sendmail listening on port 25 on my local RHL database server (localhost),
 but you will likely need to use a company relay such as **smtp.mycompany.com**.
 The administrator of the relay may even need to authorize your database machine
 as a client. If the relay server complain about certificates, there is Oracle
 documentation about configuring them. I have not done so.
+
+One more example showing chaining of methods without ever declaring a variable
+as one might use in an EXCEPTION block:
+```sql
+DECLARE
+    l_var VARCHAR2(1);
+BEGIN
+    l_var := 'too much for the var size';
+EXCEPTION WHEN OTHERS THEN
+    html_email_udt(
+            p_to_list => 'lee@linux2.localdomain'
+            ,p_subject => 'error from procedure'
+            ,p_smtp_server => 'localhost'
+            ,p_body => 'Exception failed job xyz with the following information:'
+        ).add_paragraph(
+            'sqlerrm: '||SQLERRM
+        ).add_paragraph(
+            'backtrace: '||DBMS_UTILITY.FORMAT_ERROR_BACKTRACE
+        ).add_paragraph(
+            'callstack  : '||DBMS_UTILITY.FORMAT_CALL_STACK
+        ).send
+    ;
+    RAISE;
+END;
+```
 
 ## split
 
@@ -381,7 +468,7 @@ FUNCTION split (
     ,p_separator    VARCHAR2    DEFAULT ','
     ,p_keep_nulls   VARCHAR2    DEFAULT 'N'
     ,p_strip_dquote VARCHAR2    DEFAULT 'Y' -- also "unquotes" \" and "" pairs within a double quotes string to "
-) RETURN arr_varchar2_udt
+) RETURN arr_varchar2_udt DETERMINISTIC
 -- when p_s IS NULL returns initialized collection with COUNT=0
 ```
 
@@ -392,7 +479,7 @@ fixed width text file to send to a mainframe. For example:
 
 Number: 6.80    
 Format: S9(7)V99   
-Arguments: p_number=>6.8, p_digits_befoe_decimal=>7, p_digits_after_decimal=>2   
+Arguments: p_number=>6.8, p_digits_before_decimal=>7, p_digits_after_decimal=>2   
 Result: '00000068{'    
 
 ```sql
@@ -403,5 +490,5 @@ FUNCTION to_zoned_decimal(
 ) RETURN VARCHAR2 DETERMINISTIC
 ```
 
-Converting from zoned decimal string to number is a task you would perform with sqlldr or external tables.
-The sqlldr driver has a conversion type for zoned decimal ( ZONED(7,2) ??? ).
+Converting from zoned decimal string to number is a task you would perform with sqlldr or external table.
+The sqlldr driver has a conversion type for zoned decimal ( for S9(7)V99 use ZONED(9,2) ).
