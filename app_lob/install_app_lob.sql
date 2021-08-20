@@ -1,6 +1,3 @@
-----------------------------------------------------------------------------
---ALTER SESSION SET PLSQL_CCFLAGS='use_app_log:TRUE';
-----------------------------------------------------------------------------
 whenever sqlerror exit failure
 --
 prompt beginning app_lob.pks

@@ -22,51 +22,46 @@ per the MIT license, others are already public domain. Included are
 
 ## install.sql
 
-Runs each of these scripts in correct order and with compile options. At the top is the line:
+Runs each of these scripts in correct orderl
 
-    ALTER SESSION SET PLSQL_CCFLAGS='use_app_log:&&use_app_log.';
-
-If you do not want to install *app_log*, set that compile directive to FALSE and 
-comment out the call to "@&&subdir/install_app_log.sql". 
-
-*split* depends upon '@arr_varchar2_udt.tps'. Other than that and the above mentioned setting
-of a define value to FALSE, you can compile these separtely or not at all. If you run *install.sql*
+*split* depends upon [arr_varchar2_udt](#arr_varchar2_udt). Other than that, 
+you can compile these separtely or not at all. If you run *install.sql*
 as is, it will install all 6 components (and sub-components).
 
 ## app_lob
 
-Three LOB functions and procedures that should be in *DBMS_LOB* IMHO. The names are description enough.
+Four LOB functions and procedures that should be in *DBMS_LOB* IMHO. The names are description enough.
 
-- blob_to_file
+- blobtofile
 ```sql
-    PROCEDURE blob_to_file(
+    PROCEDURE blobtofile(
         p_filename                 VARCHAR2
         ,p_directory                VARCHAR2
         ,p_blob                     BLOB
-$if $$use_app_log $then
-        ,p_logger                   app_log_udt DEFAULT NULL -- we can use yours if you want the messages to have your applicaton id
-$end
     );
 ```
-- clob_to_blob
+- clobtoblob
 ```sql
-    FUNCTION clob_to_blob(
+    FUNCTION clobtoblob(
          p_data                     CLOB
-$if $$use_app_log $then
-         ,p_logger                  app_log_udt DEFAULT NULL
-$end
     ) RETURN BLOB
     ;
 ```
-- file_to_blob
+- filetoblob
 ```sql
-    FUNCTION file_to_blob(
+    FUNCTION filetoblob(
         p_directory                 VARCHAR2
         ,p_filename                 VARCHAR2
-$if $$use_app_log $then
-        ,p_logger                   app_log_udt DEFAULT NULL -- we can use yours if you want the messages to have your applicaton id
-$end
     ) RETURN BLOB
+    ;
+```
+- filetoclob
+```sql
+    -- TO_CLOB(BFILENAME(dir,file_name)) works in a sql statement, but not in pl/sql directly as of 12.2.
+    FUNCTION filetoclob(
+        p_directory                 VARCHAR2
+        ,p_filename                 VARCHAR2
+    ) RETURN CLOB
     ;
 ```
 
@@ -75,7 +70,7 @@ $end
 A lightweight and fast general purpose database application logging facility, 
 the core is an object oriented user defined type with methods for writing 
 time-stamped log records to a table.  Since the autonomous transactions write independently,
-you can get status of the program before "succesful" completion that might be
+you can get status of the program before "successful" completion that might be
 required for dbms_output. In addition to generally useful logging, 
 it (or something like it) is indispensable for debugging and development.
 
@@ -105,14 +100,18 @@ Example Usage:
     BEGIN
         -- log a message for our app
         v_log_obj.log('START job xyz');
-        -- log_p does DBMS_OUTPUT.PUT_LINE with the message then logs it
-        v_log_obj.log_p('FAILED job xyz');
-        v_log_obj.log_p('sql error: '||sqlerrm);
+        ...
+        v_log_obj.log('DONE job xyz');
+        EXCEPTION WHEN OTHERS THEN
+            -- log_p does DBMS_OUTPUT.PUT_LINE with the message then logs it
+            v_log_obj.log_p('FAILED job xyz');
+            v_log_obj.log_p('sql error: '||sqlerrm);
+            RAISE;
     END;
 ```
 
 There is a static procedure *purge_old* for pruning old log records that you can schedule.
-It uses a method that swaps a synonym between two base tables so that it does not interrupt 
+It uses a technique that swaps a synonym between two base tables so that it does not interrupt 
 ongoing log writes.
 
 In addition to the underlying implementation tables, there are three views:
