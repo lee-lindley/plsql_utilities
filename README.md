@@ -28,7 +28,10 @@ Runs each of these scripts in correct orderl
 
 *split* depends upon [arr_varchar2_udt](#arr_varchar2_udt). Other than that, 
 you can compile these separately or not at all. If you run *install.sql*
-as is, it will install all 7 components (and sub-components).
+as is, it will install 6 of the 7 components (and sub-components).
+
+The compile for *app_dbms_sql* is commented out. It is generally compiled from a repository
+that includes *plsql_utilities* as a submodule.
 
 ## app_lob
 
