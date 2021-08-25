@@ -87,14 +87,27 @@ IS
     ) RETURN CLOB
     AS
         v_bfile             BFILE;
-        v_clob              CLOB;
+        v_clob              CLOB := empty_clob();
+        v_clob2             CLOB;
+        v_wrn               INTEGER;
+        v_src_off           INTEGER := 1;
+        v_dest_off          INTEGER := 1;
+        v_lang_ctx          INTEGER := 0;
     BEGIN
-        DBMS_LOB.createtemporary(v_clob, FALSE);
         v_bfile := BFILENAME(p_directory, p_filename);
         DBMS_LOB.fileopen(v_bfile, DBMS_LOB.file_readonly);
-        DBMS_LOB.loadfromfile(v_clob, v_bfile, DBMS_LOB.getlength(v_bfile));
+        IF DBMS_LOB.getlength(v_bfile) > 0 THEN
+            DBMS_LOB.createtemporary(v_clob, TRUE);
+            DBMS_LOB.loadclobfromfile(v_clob, v_bfile, DBMS_LOB.getlength(v_bfile)
+                ,v_dest_off
+                ,v_src_off
+                ,0, v_lang_ctx, v_wrn
+            );
+            v_clob2 := v_clob;
+            DBMS_LOB.freetemporary(v_clob);
+        END IF;
         DBMS_LOB.fileclose(v_bfile);
-        RETURN v_clob;
+        RETURN v_clob2;
     EXCEPTION WHEN OTHERS THEN
         IF DBMS_LOB.fileisopen(v_bfile) = 1 
             THEN DBMS_LOB.fileclose(v_bfile);
