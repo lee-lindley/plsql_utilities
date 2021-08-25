@@ -189,11 +189,13 @@ SOFTWARE.
         p_ctx IN OUT BINARY_INTEGER
     ) IS
     BEGIN
-        g_hash_ctx.DELETE(p_ctx);
-        IF DBMS_SQL.IS_OPEN(p_ctx) THEN
-            DBMS_SQL.close_cursor(p_ctx); -- also nulls out p_ctx
-        ELSE
-            p_ctx := NULL;
+        IF p_ctx IS NOT NULL THEN 
+            g_hash_ctx.DELETE(p_ctx);
+            IF DBMS_SQL.IS_OPEN(p_ctx) THEN
+                DBMS_SQL.close_cursor(p_ctx); -- also nulls out p_ctx
+            ELSE
+                p_ctx := NULL;
+            END IF;
         END IF;
     END close_cursor;
 
