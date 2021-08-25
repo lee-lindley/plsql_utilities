@@ -23,3 +23,7 @@ prompt to_zoned_decimal.sql
 define subdir=app_lob
 prompt calling &&subdir/install_app_lob.sql
 @&&subdir/install_app_lob.sql
+--
+define subdir=app_dbms_sql
+prompt calling &&subdir/install_app_dbms_sql.sql
+@&&subdir/install_app_dbms_sql.sql

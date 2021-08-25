@@ -1,9 +1,9 @@
 CREATE OR REPLACE PACKAGE BODY app_lob
 IS
     PROCEDURE blobtofile(
-         p_filename                 VARCHAR2
+         p_blob                     BLOB
         ,p_directory                VARCHAR2
-        ,p_blob                     BLOB
+        ,p_filename                 VARCHAR2
     )
     AS
         v_file              UTL_FILE.file_type;
@@ -29,7 +29,7 @@ IS
     ;
 
     FUNCTION clobtoblob(
-         p_data                     CLOB
+         p_clob                     CLOB
     ) RETURN BLOB
     AS
         -- these are in/out parameters in the dbms_lob procedure
@@ -46,7 +46,7 @@ IS
         );
         DBMS_LOB.converttoblob(
             dest_lob        => v_blob
-            ,src_clob       => p_data
+            ,src_clob       => p_clob
             ,amount         => DBMS_LOB.lobmaxsize
             ,dest_offset    => v_dest_offset
             ,src_offset     => v_src_offset

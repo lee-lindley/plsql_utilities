@@ -28,9 +28,9 @@ IS
             end;
     */
     PROCEDURE blobtofile(
-        p_filename                 VARCHAR2
+        p_blob                      BLOB
         ,p_directory                VARCHAR2
-        ,p_blob                     BLOB
+        ,p_filename                 VARCHAR2
     );
 
     /*
@@ -44,7 +44,7 @@ IS
             end;
     */
     FUNCTION clobtoblob(
-         p_data                     CLOB
+         p_clob                     CLOB
     ) RETURN BLOB
     ;
 

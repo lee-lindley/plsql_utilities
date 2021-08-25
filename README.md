@@ -10,6 +10,7 @@ per the MIT license, others are already public domain. Included are
 * Splitting of CSV Strings into Fields
 * Create Zoned Decimal Strings from Numbers
 * A few LOB Utilities
+* A wrapper for DBMS_SQL that handles bulk fetches
 
 # Content
 1. [install.sql](#installsql)
@@ -19,14 +20,15 @@ per the MIT license, others are already public domain. Included are
 5. [arr_varchar2_udt](#arr_varchar2_udt)
 6. [split](#split)
 7. [to_zoned_decimal](#to_zoned_decimal)
+8. [app_dbms_sql](#app_dbms_sql)
 
 ## install.sql
 
 Runs each of these scripts in correct orderl
 
 *split* depends upon [arr_varchar2_udt](#arr_varchar2_udt). Other than that, 
-you can compile these separtely or not at all. If you run *install.sql*
-as is, it will install all 6 components (and sub-components).
+you can compile these separately or not at all. If you run *install.sql*
+as is, it will install all 7 components (and sub-components).
 
 ## app_lob
 
@@ -35,15 +37,15 @@ Four LOB functions and procedures that should be in *DBMS_LOB* IMHO. The names a
 - blobtofile
 ```sql
     PROCEDURE blobtofile(
-        p_filename                 VARCHAR2
+        p_blob                      BLOB
         ,p_directory                VARCHAR2
-        ,p_blob                     BLOB
+        ,p_filename                 VARCHAR2
     );
 ```
 - clobtoblob
 ```sql
     FUNCTION clobtoblob(
-         p_data                     CLOB
+         p_clob                     CLOB
     ) RETURN BLOB
     ;
 ```
@@ -254,3 +256,25 @@ FUNCTION to_zoned_decimal(
 
 Converting from zoned decimal string to number is a task you would perform with sqlldr or external table.
 The sqlldr driver has a conversion type for zoned decimal ( for S9(7)V99 use ZONED(9,2) ).
+
+## app_dbms_sql
+
+Given a SYS_REFCURSOR of unknown select list, set up to bulk collect the column
+values into arrays, then return each row as an array of strings
+converted per specification.
+
+You have no reason to use this package directly because you can just as easily
+do the conversion to text in SQL. The package is used by a facility to create CSV rows
+(taking care of proper quoting), as well as a facility that creates PDF report files.
+
+Unless you are trying to create a generic utility that can handle any query sent it's way,
+you almost certainly would be better off using native dynamic sql, or at worst, using DBMS_SQL
+directly. 
+
+Mainly I got sick of handling the details of DBMS_SQL array fetches which essentially
+require you to know what the columns are because you have to declare variables for
+each column type (and the only reason I needed DBMS_SQL was because I don't know the
+select list at compile time!!!). This thing is exceedingly ugly, but in return you 
+get a simple interface to something that turned out to be complicated to do efficiently.
+
+
