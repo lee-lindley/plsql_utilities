@@ -279,5 +279,47 @@ require you to know what the columns are because you have to declare variables f
 each column type (and the only reason I needed DBMS_SQL was because I don't know the
 select list at compile time!!!). This thing is exceedingly ugly, but in return you 
 get a simple interface to something that turned out to be complicated to do efficiently.
+Most implementations I examined either used DBMS_SQL in row by row mode, or else after doing
+a bulk fetch, copied the entire bulk set of column values to get the ones desired for a single row
+(repeating on every row). It baffled me until I tried to do it myself. 
+
+DBMS_SQL is an
+imperfect interface. This is a little better, but only because we are returning strings for all values.
+We could use the *anydata* type perhaps, but then the consumer must have a big case statement deciding
+what to do with each value. I can't find an easy button here. It is a hard problem.
+
+```sql
+    -- Main entry point. This is how you get the party started.
+    FUNCTION convert_cursor(
+        p_cursor        SYS_REFCURSOR
+        ,p_bulk_count   BINARY_INTEGER := 100
+    ) RETURN BINARY_INTEGER;
+
+    -- you should call this when finished, but it deletes the context
+    -- so be sure and grab row_count first if you need it.
+    -- You should also put it in your exception block.
+    PROCEDURE close_cursor(
+        p_ctx    IN OUT BINARY_INTEGER
+    );
+
+    TYPE t_arr_varchar2 IS TABLE OF VARCHAR2(32767);
+
+    -- After calling convert_cursor, you call get_next_column_values in a loop
+    -- until it returns null. The other methods are just candy.
+    --
+    -- will return NULL when no more rows
+    -- The returned array values are the values of each query column converted to string
+    FUNCTION get_next_column_values(
+        p_ctx               BINARY_INTEGER
+        ,p_num_format       VARCHAR2 := 'tm9'
+        ,p_date_format      VARCHAR2 := 'MM/DD/YYYY'
+        ,p_interval_format  VARCHAR2 := NULL
+    ) RETURN t_arr_varchar2;
+
+    -- and the candy...
+    FUNCTION get_row_count(p_ctx BINARY_INTEGER) RETURN BINARY_INTEGER;
+    FUNCTION get_desc_tab3(p_ctx BINARY_INTEGER) RETURN DBMS_SQL.desc_tab3;
+    FUNCTION get_column_names(p_ctx BINARY_INTEGER) RETURN t_arr_varchar2;
+```
 
 

@@ -55,6 +55,13 @@ SOFTWARE.
 
     FUNCTION get_desc_tab3(p_ctx BINARY_INTEGER) RETURN DBMS_SQL.desc_tab3;
     FUNCTION get_column_names(p_ctx BINARY_INTEGER) RETURN t_arr_varchar2;
+
+    --
+    -- You could use this next pair (fetch_next_row, get_column_values)
+    -- in a loop, but get_next_column_values is more convenient. 
+    -- At this point I'm not sure there is a reason
+    -- to expose these 2 functions as public.
+    --
     -- 0 means no more rows; otherwise is the index into the current bulk fetch
     -- not useful other than as a flag
     FUNCTION fetch_next_row(p_ctx BINARY_INTEGER) RETURN BINARY_INTEGER;
@@ -65,6 +72,10 @@ SOFTWARE.
         ,p_date_format      VARCHAR2 := 'MM/DD/YYYY'
         ,p_interval_format  VARCHAR2 := NULL
     ) RETURN t_arr_varchar2;
+
+    -- After calling convert_cursor, you call get_next_column_values in a loop
+    -- until it returns null. The other methods are just candy.
+    --
     -- will return NULL when no more rows
     FUNCTION get_next_column_values(
         p_ctx               BINARY_INTEGER
