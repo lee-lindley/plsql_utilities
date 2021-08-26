@@ -305,12 +305,13 @@ SOFTWARE.
         -- we need the index into these bulk collection arrays for this fetch. Remember that
         -- dbms_sql does not assume you have the prior results or not and simply puts the results
         -- into these collections starting where it left off after the last fetch.
-        --on first row the math is:  100 - 100 + 1 == 1
-        --on second fetch the math is : 200 - 100 + 1 == 101
+        -- on first row of first fetch the math is:  100 - 100 + 1 == 1
+        -- on second fetch the math is : 200 - 100 + 1 == 101
         v_ri := g_hash_ctx(p_ctx).total_rows_fetched - g_hash_ctx(p_ctx).rows_fetched + g_hash_ctx(p_ctx).row_index;
 
         FOR i IN 1..g_hash_ctx(p_ctx).col_cnt
         LOOP
+            -- i is the column number. v_ri is the row number
               CASE g_hash_ctx(p_ctx).desc_tab3(i).col_type
                 WHEN DBMS_SQL.varchar2_type THEN
                     v_a(i) := g_hash_ctx(p_ctx).a_varchar2a_table(i)(v_ri);

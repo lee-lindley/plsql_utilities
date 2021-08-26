@@ -98,30 +98,39 @@ SOFTWARE.
     --
     -- tables of tables. These will be sparse with the index being the column number.
     -- So if columns 1 and 3 are number columns, arr_number_table(1) and (3)
-    -- will hold DBMS_SQL.number_table's. Those are also associative arrays, so
-    -- the uncommon syntax to get a value from a variable of one of these types
-    -- is varnam(v_i)(v_j)
+    -- will hold DBMS_SQL.number_table's. Since we do not know how many number_table's
+    -- we will need, we use an associative array keyed to the column number. Sure, lots
+    -- of gaps, but that doesn't matter for these.
     --
-    TYPE arr_bfile_table IS TABLE OF DBMS_SQL.bfile_table INDEX BY BINARY_INTEGER;
-    TYPE arr_binary_double_table IS TABLE OF DBMS_SQL.binary_double_table INDEX BY BINARY_INTEGER;
-    TYPE arr_binary_float_table IS TABLE OF DBMS_SQL.binary_float_table INDEX BY BINARY_INTEGER;
-    TYPE arr_blob_table IS TABLE OF DBMS_SQL.blob_table INDEX BY BINARY_INTEGER;
-    TYPE arr_clob_table IS TABLE OF DBMS_SQL.clob_table INDEX BY BINARY_INTEGER;
-    TYPE arr_date_table IS TABLE OF DBMS_SQL.date_table INDEX BY BINARY_INTEGER;
-    TYPE arr_interval_day_to_second_table IS TABLE OF DBMS_SQL.interval_day_to_second_table INDEX BY BINARY_INTEGER;
-    TYPE arr_interval_year_to_month_table IS TABLE OF DBMS_SQL.interval_year_to_month_table INDEX BY BINARY_INTEGER;
-    TYPE arr_number_table IS TABLE OF DBMS_SQL.number_table INDEX BY BINARY_INTEGER;
-    TYPE arr_time_table IS TABLE OF DBMS_SQL.time_table INDEX BY BINARY_INTEGER;
-    TYPE arr_time_with_time_zone_table IS TABLE OF DBMS_SQL.time_with_time_zone_table INDEX BY BINARY_INTEGER;
-    TYPE arr_timestamp_table IS TABLE OF DBMS_SQL.timestamp_table INDEX BY BINARY_INTEGER;
-    TYPE arr_timestamp_w_ltz_table IS TABLE OF DBMS_SQL.timestamp_with_ltz_table INDEX BY BINARY_INTEGER;
-    TYPE arr_timestamp_w_time_zone_table IS TABLE OF DBMS_SQL.timestamp_with_time_zone_table INDEX BY BINARY_INTEGER;
-    TYPE arr_urowid_table IS TABLE OF DBMS_SQL.urowid_table INDEX BY BINARY_INTEGER;
-    TYPE arr_varchar2a_table IS TABLE OF DBMS_SQL.varchar2a INDEX BY BINARY_INTEGER;
+    -- The variables stored in these are also associative arrays, so
+    -- the uncommon syntax to get a value from a result set column 
+    -- is varname(v_column_number)(v_row_number) 
+    -- where "row number" is the one DBMS_SQL says it is. See DBMS_SQL.column_value for 
+    -- discussion on that. The example in the documentation is decent.
+    --
+    TYPE arr_bfile_table                    IS TABLE OF DBMS_SQL.bfile_table                    INDEX BY BINARY_INTEGER;
+    TYPE arr_binary_double_table            IS TABLE OF DBMS_SQL.binary_double_table            INDEX BY BINARY_INTEGER;
+    TYPE arr_binary_float_table             IS TABLE OF DBMS_SQL.binary_float_table             INDEX BY BINARY_INTEGER;
+    TYPE arr_blob_table                     IS TABLE OF DBMS_SQL.blob_table                     INDEX BY BINARY_INTEGER;
+    TYPE arr_clob_table                     IS TABLE OF DBMS_SQL.clob_table                     INDEX BY BINARY_INTEGER;
+    TYPE arr_date_table                     IS TABLE OF DBMS_SQL.date_table                     INDEX BY BINARY_INTEGER;
+    TYPE arr_interval_day_to_second_table   IS TABLE OF DBMS_SQL.interval_day_to_second_table   INDEX BY BINARY_INTEGER;
+    TYPE arr_interval_year_to_month_table   IS TABLE OF DBMS_SQL.interval_year_to_month_table   INDEX BY BINARY_INTEGER;
+    TYPE arr_number_table                   IS TABLE OF DBMS_SQL.number_table                   INDEX BY BINARY_INTEGER;
+    TYPE arr_time_table                     IS TABLE OF DBMS_SQL.time_table                     INDEX BY BINARY_INTEGER;
+    TYPE arr_time_with_time_zone_table      IS TABLE OF DBMS_SQL.time_with_time_zone_table      INDEX BY BINARY_INTEGER;
+    TYPE arr_timestamp_table                IS TABLE OF DBMS_SQL.timestamp_table                INDEX BY BINARY_INTEGER;
+    TYPE arr_timestamp_w_ltz_table          IS TABLE OF DBMS_SQL.timestamp_with_ltz_table       INDEX BY BINARY_INTEGER;
+    TYPE arr_timestamp_w_time_zone_table    IS TABLE OF DBMS_SQL.timestamp_with_time_zone_table INDEX BY BINARY_INTEGER;
+    TYPE arr_urowid_table                   IS TABLE OF DBMS_SQL.urowid_table                   INDEX BY BINARY_INTEGER;
+    TYPE arr_varchar2a_table                IS TABLE OF DBMS_SQL.varchar2a                      INDEX BY BINARY_INTEGER;
 
-    -- for each open cursor in the session we can have one of these. It will hold
-    -- all the state data about the cursor and the column values from the returned rows.
-    -- only the values for the current bulk fetch will be in the tables.
+    -- for each open cursor in the session we can have one of these stored in an associative array. 
+    -- It will hold the state data about the cursor and the column values from the returned rows.
+    -- Only the values for the current bulk fetch will be in the tables in this structure.
+    -- We delete the ones from the last bulk fetch before pulling in the ones for the new one.
+    -- BUT!!! dbms_sql does not know that and assumes the old ones could be there, so it puts
+    -- the new ones at a starting index that is after the last set.
     TYPE t_all_arr IS RECORD(
         desc_tab3                       DBMS_SQL.desc_tab3
         ,col_cnt                        BINARY_INTEGER
@@ -129,6 +138,7 @@ SOFTWARE.
         ,total_rows_fetched             BINARY_INTEGER
         ,row_index                      BINARY_INTEGER
         ,rows_fetched                   BINARY_INTEGER
+        --
         ,a_bfile_table                  arr_bfile_table
         ,a_binary_double_table          arr_binary_double_table 
         ,a_binary_float_table           arr_binary_float_table 
@@ -142,7 +152,7 @@ SOFTWARE.
         ,a_time_with_time_zone_table    arr_time_with_time_zone_table 
         ,a_timestamp_table              arr_timestamp_table 
         ,a_timestamp_w_ltz_table        arr_timestamp_w_ltz_table 
-        ,a_timestamp_w_time_zone_table arr_timestamp_w_time_zone_table 
+        ,a_timestamp_w_time_zone_table  arr_timestamp_w_time_zone_table 
         ,a_urowid_table                 arr_urowid_table 
         ,a_varchar2a_table              arr_varchar2a_table 
     );
