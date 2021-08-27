@@ -23,6 +23,16 @@ prompt to_zoned_decimal.sql
 define subdir=app_lob
 prompt calling &&subdir/install_app_lob.sql
 @&&subdir/install_app_lob.sql
+--
+define subdir=as_zip
+prompt calling &&subdir/install_as_zip.sql
+@&&subdir/install_as_zip.sql
+--
+-- requires as_zip, split, app_lob and arr_varchar2_udt(or equivalent you substitute in the source files)
+define subdir=app_zip
+prompt calling &&subdir/install_app_zip.sql
+@&&subdir/install_app_zip.sql
+--
 -- uncomment if you want app_dbms_sql. Generally it is compiled
 -- by other repository install scripts that include plsql_utilities as a submodule
 --define subdir=app_dbms_sql

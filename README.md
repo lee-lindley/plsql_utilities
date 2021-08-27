@@ -10,6 +10,8 @@ per the MIT license, others are already public domain. Included are
 * Splitting of CSV Strings into Fields
 * Create Zoned Decimal Strings from Numbers
 * A few LOB Utilities
+* A zip archive handler courtesy of Anton Scheffer
+* An Object wrapper for *as_zip*
 * A wrapper for DBMS_SQL that handles bulk fetches
 
 # Content
@@ -20,17 +22,22 @@ per the MIT license, others are already public domain. Included are
 5. [arr_varchar2_udt](#arr_varchar2_udt)
 6. [split](#split)
 7. [to_zoned_decimal](#to_zoned_decimal)
-8. [app_dbms_sql](#app_dbms_sql)
+8. [as_zip](#as_zip)
+9. [app_zip](#app_zip)
+10. [app_dbms_sql](#app_dbms_sql)
 
 ## install.sql
 
-Runs each of these scripts in correct orderl
+Runs each of these scripts in correct order.
 
-*split* depends upon [arr_varchar2_udt](#arr_varchar2_udt). Other than that, 
-you can compile these separately or not at all. If you run *install.sql*
-as is, it will install 6 of the 7 components (and sub-components).
+*split* depends upon [arr_varchar2_udt](#arr_varchar2_udt). 
 
-The compile for *app_dbms_sql* is commented out. It is generally compiled from a repository
+*app_zip* depends on [as_zip](#as_zip), [app_lob](#app_lob), [arr_varchar2_udt](#arr_varchar2_udt), and [split](#split).
+
+Other than those, you can compile these separately or not at all. If you run *install.sql*
+as is, it will install 9 of the 10 components (and sub-components).
+
+The compile for [app_dbms_sql](#app_dbms_sql) is commented out. It is generally compiled from a repository
 that includes *plsql_utilities* as a submodule.
 
 ## app_lob
@@ -259,6 +266,118 @@ FUNCTION to_zoned_decimal(
 
 Converting from zoned decimal string to number is a task you would perform with sqlldr or external table.
 The sqlldr driver has a conversion type for zoned decimal ( for S9(7)V99 use ZONED(9,2) ).
+
+## as_zip
+
+A package for reading and writing ZIP archives as BLOBs published by Anton Scheffer
+[compress-gzip-and-zlib](https://technology.amis.nl/it/utl_compress-gzip-and-zlib/).
+
+Other than splitting into .pks and .pkb files, the only change I made was declaring
+the package to use invoker rights (AUTHID CURRENT_USER). The reason is that it can write
+a file to a directory and that priviledge should depend on the caller.
+
+Somewhere along the way I picked up a version that added an optional Date argument to *add1file*.
+It is a slight mismatch from the above link. Seems useful though. If you already have as_zip
+installed without it, you might choose to remove the optional date argument from methods in *app_zip*.
+
+## app_zip
+
+An object type wrapper for [as_zip](#as_zip), it adds methods for adding clobs and for
+adding multiple files at once from a comma separated list string. The functionality
+is exclusively for creating the zip archive BLOB. If you want to list the file content
+or grab a file from a zip, use *as_zip* directly.
+
+The method interface is:
+```sql
+    ,CONSTRUCTOR FUNCTION app_zip_udt RETURN SELF AS RESULT
+    -- once you call get_zip, the object blob is no longer useful. You cannot add to it
+    -- nor can you call get_zip again.
+    ,MEMBER FUNCTION get_zip RETURN BLOB
+    ,MEMBER PROCEDURE add_blob(
+        p_blob      BLOB
+        ,p_name     VARCHAR2
+        ,p_date     DATE DEFAULT SYSDATE
+    )
+    ,MEMBER FUNCTION add_blob(
+        p_blob      BLOB
+        ,p_name     VARCHAR2
+        ,p_date     DATE DEFAULT SYSDATE
+    ) RETURN app_zip_udt
+    ,MEMBER PROCEDURE add_clob(
+        p_clob      CLOB
+        ,p_name     VARCHAR2
+        ,p_date     DATE DEFAULT SYSDATE
+    )
+    ,MEMBER FUNCTION add_clob(
+        p_clob      CLOB
+        ,p_name     VARCHAR2
+        ,p_date     DATE DEFAULT SYSDATE
+    ) RETURN app_zip_udt
+    ,MEMBER PROCEDURE add_file(
+        p_dir       VARCHAR2
+        ,p_name     VARCHAR2
+        ,p_date     DATE DEFAULT SYSDATE
+    )
+    ,MEMBER FUNCTION add_file(
+        p_dir       VARCHAR2
+        ,p_name     VARCHAR2
+        ,p_date     DATE DEFAULT SYSDATE
+    ) RETURN app_zip_udt
+    -- comma separated list of file names
+    ,MEMBER PROCEDURE add_files(
+        p_dir           VARCHAR2
+        ,p_name_list    VARCHAR2
+        ,p_date         DATE DEFAULT SYSDATE
+    )
+    ,MEMBER FUNCTION add_files(
+        p_dir           VARCHAR2
+        ,p_name_list    VARCHAR2
+        ,p_date         DATE DEFAULT SYSDATE
+    ) RETURN app_zip_udt
+    -- names should have dir as first component before slash
+    ,MEMBER PROCEDURE add_files(
+        p_name_list     VARCHAR2
+        ,p_date         DATE DEFAULT SYSDATE
+    )
+    ,MEMBER FUNCTION add_files(
+        p_name_list     VARCHAR2
+        ,p_date         DATE DEFAULT SYSDATE
+    ) RETURN app_zip_udt
+```
+
+Example:
+```sql
+    DECLARE
+        l_zip   BLOB;
+        l_z     app_zip_udt;
+    BEGIN
+        l_z := app_zip_udt;
+        l_z.add_clob('some text in a clob', 'folder_x/y.txt');
+        l_z.add_files('TMP_DIR', 'x.txt,y.xlsx,z.csv');
+        l_z.add_files('TMP_DIR/a.txt, TMP_DIR/b.xlsx, TMP_DIR/c.csv');
+        l_zip := l_z.get_zip;
+        INSERT INTO mytable(file_name, blob_content) VALUES ('my_zip_file.zip', l_zip);
+        COMMIT;
+    END;
+```
+Examples with method chaining:
+```sql
+    -- chaining function calls without declaring a variable
+    INSERT INTO mytable(file_name, blob_content)
+        VALUES('my_zip_file.zip'
+            ,app_zip_udt().add_files('TMP_DIR/a.txt, TMP_DIR/b.xlsx, TMP_DIR/c.csv').get_zip()
+        )
+    COMMIT;
+
+    SELECT app_zip_udt().add_file(m.blob_content, m.file_name).get_zip() AS zip_file_blob
+    FROM mytable
+    WHERE file_name = 'my_big_file.csv'
+    ;
+
+    SELECT app_zip_udt().add_file('TMP_DIR', 'some_big_file.csv').get_zip() AS zip_file_blob FROM DUAL;
+```
+The *test* subdirectory of the *app_zip* folder may be helpful for seeing it in action.
+
 
 ## app_dbms_sql
 
