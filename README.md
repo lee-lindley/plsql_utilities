@@ -370,8 +370,8 @@ Examples with method chaining:
     COMMIT;
 
     SELECT app_zip_udt().add_file(m.blob_content, m.file_name).get_zip() AS zip_file_blob
-    FROM mytable
-    WHERE file_name = 'my_big_file.csv'
+    FROM mytable m
+    WHERE m.file_name = 'my_big_file.csv'
     ;
 
     SELECT app_zip_udt().add_file('TMP_DIR', 'some_big_file.csv').get_zip() AS zip_file_blob FROM DUAL;
