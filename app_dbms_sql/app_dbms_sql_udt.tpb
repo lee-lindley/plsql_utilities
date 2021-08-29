@@ -78,7 +78,7 @@ SOFTWARE.
         RETURN v_a;
     END get_column_names;
 
-    FINAL MEMBER FUNCTION get_column_types RETURN arr_varchar2_udt
+    FINAL MEMBER FUNCTION get_column_types RETURN arr_integer_udt
     IS
     BEGIN
         RETURN col_types;
@@ -146,7 +146,7 @@ SOFTWARE.
         -- populates attribut col_cnt
         DBMS_SQL.describe_columns3(ctx, col_cnt, v_t);
 
-        col_types   := arr_varchar2_udt(col_cnt);
+        col_types   := arr_integer_udt(col_cnt);
         col_types.EXTEND(col_cnt);
         -- have dbms_sql define the bulk column associative arrays
         FOR i IN 1..col_cnt

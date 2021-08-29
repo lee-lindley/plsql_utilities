@@ -8,6 +8,8 @@ prompt arr_arr_clob_udt.tps
 @app_types/arr_arr_clob_udt.tps
 prompt arr_varchar2_udt.tps
 @app_types/arr_varchar2_udt.tps
+prompt arr_integer_udt.tps
+@app_types/arr_integer_udt.tps
 --
 -- split requires arr_varchar2_udt or you can edit it to use your own version
 prompt split.sql
@@ -40,7 +42,7 @@ prompt calling &&subdir/install_app_zip.sql
  /*
  uncomment if you want app_dbms_sql. Generally it is compiled
  by other repository install scripts that include plsql_utilities as a submodule
- requires arr_clob_udt, arr_arr_clob_udt, and arr_varchar2_udt
+ requires arr_clob_udt, arr_arr_clob_udt, arr_integer_udt, and arr_varchar2_udt
 */
 --define subdir=app_dbms_sql
 --prompt calling &&subdir/install_app_dbms_sql.sql

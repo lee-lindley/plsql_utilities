@@ -49,7 +49,7 @@ SOFTWARE.
     ,total_rows_fetched     INTEGER
     ,rows_fetched           INTEGER
     ,row_index              INTEGER
-    ,col_types              arr_varchar2_udt
+    ,col_types              arr_integer_udt
     --,CONSTRUCTOR FUNCTION app_dbms_sql_udt(
     --    p_cursor                SYS_REFCURSOR
     --    ,p_bulk_count           INTEGER := 100
@@ -63,7 +63,7 @@ SOFTWARE.
     -- if you want it, you will have to go get it yourself using the ctx from get_ctx
     --,MEMBER FUNCTION get_desc_tab3      RETURN DBMS_SQL.desc_tab3
     ,FINAL MEMBER FUNCTION get_column_names   RETURN arr_varchar2_udt
-    ,FINAL MEMBER FUNCTION get_column_types   RETURN arr_varchar2_udt
+    ,FINAL MEMBER FUNCTION get_column_types   RETURN arr_integer_udt
     -- should only call after completing read of all rows
     ,FINAL MEMBER FUNCTION get_row_count RETURN INTEGER
     --
