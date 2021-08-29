@@ -2,6 +2,10 @@ set serveroutput on
 --
 -- You can pick and choose which of these to deploy. Dependencies are noted.
 --
+prompt arr_clob_udt.tps
+@arr_clob_udt.tps
+prompt arr_arr_clob_udt.tps
+@arr_arr_clob_udt.tps
 prompt arr_varchar2_udt.tps
 @arr_varchar2_udt.tps
 --

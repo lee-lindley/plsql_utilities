@@ -19,12 +19,13 @@ per the MIT license, others are already public domain. Included are
 2. [app_lob](#app_lob)
 3. [app_log](#app_log)
 4. [app_parameter](#app_parameter)
-5. [arr_varchar2_udt](#arr_varchar2_udt)
-6. [split](#split)
-7. [to_zoned_decimal](#to_zoned_decimal)
-8. [as_zip](#as_zip)
-9. [app_zip](#app_zip)
-10. [app_dbms_sql](#app_dbms_sql)
+5. [arr_arr_clob_udt](#arr_arr_clob_udt)
+6. [arr_varchar2_udt](#arr_varchar2_udt)
+7. [split](#split)
+8. [to_zoned_decimal](#to_zoned_decimal)
+9. [as_zip](#as_zip)
+10. [app_zip](#app_zip)
+11. [app_dbms_sql](#app_dbms_sql)
 
 ## install.sql
 
@@ -35,10 +36,10 @@ Runs each of these scripts in correct order.
 *app_zip* depends on [as_zip](#as_zip), [app_lob](#app_lob), [arr_varchar2_udt](#arr_varchar2_udt), and [split](#split).
 
 Other than those, you can compile these separately or not at all. If you run *install.sql*
-as is, it will install 9 of the 10 components (and sub-components).
+as is, it will install 10 of the 11 components (and sub-components).
 
 The compile for [app_dbms_sql](#app_dbms_sql) is commented out. It is generally compiled from a repository
-that includes *plsql_utilities* as a submodule.
+that includes *plsql_utilities* as a submodule. It requires [arr_clob_udt](#arr_clob_udt).
 
 ## app_lob
 
@@ -207,6 +208,15 @@ also add the userid and timestamp for new records that do not have values provid
 This level of control is likely overkill, but it is nice to be able to
 tell an auditor or security reviewer that you have auditable change history on an important table 
 that you will probably want to be able to update in production without a code promotion.
+
+## arr_arr_clob_udt
+
+Two user defined types. *arr_clob_udt* is a TABLE OF CLOB. *arr_arr_clob_udt* is a 
+TABLE OF *arr_clob_udt* (or array of arrays).
+If you already
+have these in some form, by all means use them instead. Replace all references to *arr_arr_clob_udt*
+(do this one first so you do not match *arr_clob_udt*)
+and *arr_clob_udt* in the other files you deploy.
 
 ## arr_varchar2_udt
 
