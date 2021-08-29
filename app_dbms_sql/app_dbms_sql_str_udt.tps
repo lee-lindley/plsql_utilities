@@ -1,4 +1,4 @@
-CREATE OR REPLACE TYPE app_dbms_sql_udt AUTHID CURRENT_USER AS OBJECT (
+CREATE OR REPLACE TYPE app_dbms_sql_str_udt AUTHID CURRENT_USER UNDER app_dbms_sql_udt (
 -- https://github.com/lee-lindley/plsql_utilities
 /*
 MIT License
@@ -43,6 +43,7 @@ SOFTWARE.
 
     */
 
+     /* these are defined in supertype
      ctx                    INTEGER
     ,col_cnt                INTEGER
     ,bulk_cnt               INTEGER
@@ -50,35 +51,41 @@ SOFTWARE.
     ,rows_fetched           INTEGER
     ,row_index              INTEGER
     ,col_types              arr_varchar2_udt
-    --,CONSTRUCTOR FUNCTION app_dbms_sql_udt(
-    --    p_cursor                SYS_REFCURSOR
-    --    ,p_bulk_count           INTEGER := 100
-    --) RETURN SELF AS RESULT
-    ,FINAL MEMBER PROCEDURE base_constructor(
-        SELF IN OUT NOCOPY      app_dbms_sql_udt
-        ,p_cursor               SYS_REFCURSOR
+    ,
+    */
+     default_num_fmt        VARCHAR2(4000)
+    ,default_date_fmt       VARCHAR2(4000)
+    ,default_interval_fmt   VARCHAR2(4000)
+    ,arr_fmts               arr_varchar2_udt
+    ,buf                    arr_arr_clob_udt
+    ,CONSTRUCTOR FUNCTION app_dbms_sql_str_udt(
+        p_cursor                SYS_REFCURSOR
         ,p_bulk_count           INTEGER := 100
+        ,p_default_num_fmt      VARCHAR2 := 'tm9'
+        ,p_default_date_fmt     VARCHAR2 := 'MM/DD/YYYY'
+        ,p_default_interval_fmt VARCHAR2 := NULL
+    ) RETURN SELF AS RESULT
+    ,FINAL MEMBER PROCEDURE set_fmt(
+        SELF IN OUT NOCOPY  app_dbms_sql_str_udt
+        ,p_col_index        BINARY_INTEGER
+        ,p_fmt              VARCHAR2
     )
-    ,FINAL MEMBER FUNCTION get_ctx            RETURN INTEGER
-    -- if you want it, you will have to go get it yourself using the ctx from get_ctx
-    --,MEMBER FUNCTION get_desc_tab3      RETURN DBMS_SQL.desc_tab3
-    ,FINAL MEMBER FUNCTION get_column_names   RETURN arr_varchar2_udt
-    ,FINAL MEMBER FUNCTION get_column_types   RETURN arr_varchar2_udt
-    -- should only call after completing read of all rows
-    ,FINAL MEMBER FUNCTION get_row_count RETURN INTEGER
+    ,FINAL MEMBER PROCEDURE get_next_column_values(
+        SELF     IN OUT NOCOPY app_dbms_sql_str_udt
+        ,p_arr_clob OUT NOCOPY arr_clob_udt
+    ) 
     --
-    -- you probably have no need to use this procedure
-    -- which is called from get_next_column_values in subtypes
-    ,NOT INSTANTIABLE MEMBER PROCEDURE fetch_rows(
-        SELF IN OUT NOCOPY  app_dbms_sql_udt
-    )
-    -- expects to call fetch_rows which must set row_index, rows_fetched and total_rows_fetched
-    ,FINAL MEMBER PROCEDURE fetch_next_row(
-        SELF IN OUT NOCOPY  app_dbms_sql_udt
+    -- you probably have no need to use these to procedures
+    -- which are called from get_next_column_values
+    ,FINAL MEMBER PROCEDURE get_column_values(
+        SELF     IN OUT NOCOPY app_dbms_sql_str_udt
+        ,p_arr_clob OUT NOCOPY arr_clob_udt
+    ) 
+    ,OVERRIDING MEMBER PROCEDURE fetch_rows(
+        SELF     IN OUT NOCOPY app_dbms_sql_str_udt
     )
 )
 NOT FINAL
-NOT INSTANTIABLE
 ;
 /
 show errors
