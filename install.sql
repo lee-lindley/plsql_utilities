@@ -45,3 +45,12 @@ prompt calling &&subdir/install_app_zip.sql
 --define subdir=app_dbms_sql
 --prompt calling &&subdir/install_app_dbms_sql.sql
 --@&&subdir/install_app_dbms_sql.sql
+--
+prompt running compile_schema for invalid objects
+BEGIN
+    DBMS_UTILITY.compile_schema( schema => SYS_CONTEXT('userenv','current_schema')
+                                ,compile_all => FALSE
+                                ,reuse_settings => TRUE
+                            );
+END;
+/
