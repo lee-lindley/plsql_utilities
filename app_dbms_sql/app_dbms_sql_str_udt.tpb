@@ -32,6 +32,22 @@ SOFTWARE.
         ,p_default_interval_fmt VARCHAR2 := NULL
     ) RETURN SELF AS RESULT
     IS
+    BEGIN
+        app_dbms_sql_str_constructor(
+            p_cursor, p_bulk_count, p_default_num_fmt, p_default_date_fmt, p_default_interval_fmt
+        );
+        RETURN;
+    END app_dbms_sql_str_udt;
+
+    FINAL MEMBER PROCEDURE app_dbms_sql_str_constructor(
+        SELF IN OUT NOCOPY  app_dbms_sql_str_udt
+        ,p_cursor               SYS_REFCURSOR
+        ,p_bulk_count           INTEGER := 100
+        ,p_default_num_fmt      VARCHAR2 := 'tm9'
+        ,p_default_date_fmt     VARCHAR2 := 'MM/DD/YYYY'
+        ,p_default_interval_fmt VARCHAR2 := NULL
+    )
+    IS
         v_arr_clob  arr_clob_udt := arr_clob_udt();
     BEGIN
         SELF.base_constructor(p_cursor, p_bulk_count);
@@ -50,10 +66,7 @@ SOFTWARE.
         LOOP
             buf(i) := v_arr_clob; -- allocates empty arrays of col_cnt length
         END LOOP;
-
-        RETURN;
-
-    END app_dbms_sql_str_udt;
+    END app_dbms_sql_str_constructor;
 
     FINAL MEMBER PROCEDURE set_fmt(
         SELF IN OUT NOCOPY  app_dbms_sql_str_udt

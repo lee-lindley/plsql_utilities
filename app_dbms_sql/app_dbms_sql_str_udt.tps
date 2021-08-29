@@ -65,6 +65,14 @@ SOFTWARE.
         ,p_default_date_fmt     VARCHAR2 := 'MM/DD/YYYY'
         ,p_default_interval_fmt VARCHAR2 := NULL
     ) RETURN SELF AS RESULT
+    ,FINAL MEMBER PROCEDURE app_dbms_sql_str_constructor(
+        SELF IN OUT NOCOPY      app_dbms_sql_str_udt
+        ,p_cursor               SYS_REFCURSOR
+        ,p_bulk_count           INTEGER := 100
+        ,p_default_num_fmt      VARCHAR2 := 'tm9'
+        ,p_default_date_fmt     VARCHAR2 := 'MM/DD/YYYY'
+        ,p_default_interval_fmt VARCHAR2 := NULL
+    )
     ,FINAL MEMBER PROCEDURE set_fmt(
         SELF IN OUT NOCOPY  app_dbms_sql_str_udt
         ,p_col_index        BINARY_INTEGER
