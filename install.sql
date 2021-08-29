@@ -3,11 +3,11 @@ set serveroutput on
 -- You can pick and choose which of these to deploy. Dependencies are noted.
 --
 prompt arr_clob_udt.tps
-@arr_clob_udt.tps
+@app_types/arr_clob_udt.tps
 prompt arr_arr_clob_udt.tps
-@arr_arr_clob_udt.tps
+@app_types/arr_arr_clob_udt.tps
 prompt arr_varchar2_udt.tps
-@arr_varchar2_udt.tps
+@app_types/arr_varchar2_udt.tps
 --
 -- split requires arr_varchar2_udt or you can edit it to use your own version
 prompt split.sql
@@ -37,8 +37,11 @@ define subdir=app_zip
 prompt calling &&subdir/install_app_zip.sql
 @&&subdir/install_app_zip.sql
 --
--- uncomment if you want app_dbms_sql. Generally it is compiled
--- by other repository install scripts that include plsql_utilities as a submodule
+ /*
+ uncomment if you want app_dbms_sql. Generally it is compiled
+ by other repository install scripts that include plsql_utilities as a submodule
+ requires arr_clob_udt, arr_arr_clob_udt, and arr_varchar2_udt
+*/
 --define subdir=app_dbms_sql
 --prompt calling &&subdir/install_app_dbms_sql.sql
 --@&&subdir/install_app_dbms_sql.sql
