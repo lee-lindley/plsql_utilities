@@ -146,7 +146,7 @@ SOFTWARE.
         -- populates attribut col_cnt
         DBMS_SQL.describe_columns3(ctx, col_cnt, v_t);
 
-        col_types   := arr_integer_udt(col_cnt);
+        col_types   := arr_integer_udt();
         col_types.EXTEND(col_cnt);
         -- have dbms_sql define the bulk column associative arrays
         FOR i IN 1..col_cnt
