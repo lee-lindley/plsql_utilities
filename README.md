@@ -410,11 +410,12 @@ that can handle any query sent it's way,
 you almost certainly would be better off using native dynamic sql, or at worst, using DBMS_SQL
 directly. 
 
-DBMS_SQL is an
-imperfect interface. This is a little better, but only because we are returning strings for all values.
-We could use the *anydata* type perhaps, but then the consumer must have a big case statement deciding
-what to do with each value. It is a hard problem, but an easy button (or at least easier) may be available
-with Polymorphic Table Functions come Oracle 18c (I'm still supporting 12c). This will do for now.
+DBMS_SQL is an imperfect interface. This is a little better, but only because we are 
+returning strings for all values.  The *ANYDATA* interface is grossly inefficient used directly 
+inside PL/SQL as each call goes out to the SQL engine, so it is not a viable answer.
+It is a hard problem, but an easy button (or at least easier) may be available
+with Polymorphic Table Functions come Oracle 18c (I'm still supporting 12c), though that seems 
+overly complicated on first blush too. 
 
 ### app_dbms_sql_udt
 
@@ -470,6 +471,7 @@ Inherits methods from *app_dbms_sql_udt*.
         ,p_col_index        BINARY_INTEGER
         ,p_fmt              VARCHAR2
     )
+    -- each call returns a row as an array of clob values in p_arr_clob
     ,FINAL MEMBER PROCEDURE get_next_column_values(
         SELF     IN OUT NOCOPY app_dbms_sql_str_udt
         ,p_arr_clob OUT NOCOPY arr_clob_udt
@@ -484,5 +486,4 @@ Inherits methods from *app_dbms_sql_udt*.
     ,OVERRIDING MEMBER PROCEDURE fetch_rows(
         SELF     IN OUT NOCOPY app_dbms_sql_str_udt
     )
-
 ```

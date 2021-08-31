@@ -26,7 +26,7 @@ SOFTWARE.
 
     /*
         As of Oracle 18c Polymorphic Table Functions may make this obsolete.
-        I don't quite have my head around it, and I'm still working on 12c, 
+        That said, this is a little easier to use. Plus I'm still working on 12c, 
         so I'm stuck with DBMS_SQL, which is exceedingly clunky.
 
         given a sys_refcursor of unknown select list, set up to bulk collect the column
@@ -51,7 +51,11 @@ SOFTWARE.
     ,rows_fetched           INTEGER
     ,row_index              INTEGER
     ,col_types              arr_varchar2_udt
-    ,
+    
+    MEMBER FUNCTION get_ctx            RETURN INTEGER
+    MEMBER FUNCTION get_column_names   RETURN arr_varchar2_udt
+    MEMBER FUNCTION get_column_types   RETURN arr_integer_udt
+    MEMBER FUNCTION get_row_count RETURN INTEGER
     */
      default_num_fmt        VARCHAR2(4000)
     ,default_date_fmt       VARCHAR2(4000)
