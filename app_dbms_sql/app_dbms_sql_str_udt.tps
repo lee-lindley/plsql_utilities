@@ -69,7 +69,7 @@ SOFTWARE.
         ,p_default_date_fmt     VARCHAR2 := 'MM/DD/YYYY'
         ,p_default_interval_fmt VARCHAR2 := NULL
     ) RETURN SELF AS RESULT
-    -- you only need this procedure if you are subtyping app_dbms_sql_udt.
+    -- you only need this procedure if you are subtyping app_dbms_sql_str_udt.
     ,FINAL MEMBER PROCEDURE app_dbms_sql_str_constructor(
         SELF IN OUT NOCOPY      app_dbms_sql_str_udt
         ,p_cursor               SYS_REFCURSOR

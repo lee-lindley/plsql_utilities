@@ -40,49 +40,73 @@ CREATE OR REPLACE TYPE app_zip_udt AUTHID CURRENT_USER AS OBJECT (
         ,p_name     VARCHAR2
         ,p_date     DATE DEFAULT SYSDATE
     )
+    -- callable in a chain
     ,MEMBER FUNCTION add_blob(
         p_blob      BLOB
         ,p_name     VARCHAR2
         ,p_date     DATE DEFAULT SYSDATE
     ) RETURN app_zip_udt
+    --
     ,MEMBER PROCEDURE add_clob(
         p_clob      CLOB
         ,p_name     VARCHAR2
         ,p_date     DATE DEFAULT SYSDATE
     )
+    -- callable in a chain
     ,MEMBER FUNCTION add_clob(
         p_clob      CLOB
         ,p_name     VARCHAR2
         ,p_date     DATE DEFAULT SYSDATE
     ) RETURN app_zip_udt
+
+    --
+    -- I never should have differentiated between add_file and add_files plural.
+    -- You can use either name. If the file name string contains a comma, it will split it as
+    -- multiple files.
+    --
     ,MEMBER PROCEDURE add_file(
         p_dir       VARCHAR2
         ,p_name     VARCHAR2
         ,p_date     DATE DEFAULT SYSDATE
     )
+    -- callable in a chain
     ,MEMBER FUNCTION add_file(
         p_dir       VARCHAR2
         ,p_name     VARCHAR2
         ,p_date     DATE DEFAULT SYSDATE
     ) RETURN app_zip_udt
-    -- comma separated list of file names
+    -- comma separated list of file names (or not)
     ,MEMBER PROCEDURE add_files(
         p_dir           VARCHAR2
         ,p_name_list    VARCHAR2
         ,p_date         DATE DEFAULT SYSDATE
     )
+    -- callable in a chain
     ,MEMBER FUNCTION add_files(
         p_dir           VARCHAR2
         ,p_name_list    VARCHAR2
         ,p_date         DATE DEFAULT SYSDATE
     ) RETURN app_zip_udt
+    --
     -- names should have dir as first component before slash
+    --
     ,MEMBER PROCEDURE add_files(
         p_name_list     VARCHAR2
         ,p_date         DATE DEFAULT SYSDATE
     )
+    -- callable in a chain
     ,MEMBER FUNCTION add_files(
         p_name_list     VARCHAR2
+        ,p_date         DATE DEFAULT SYSDATE
+    ) RETURN app_zip_udt
+    -- these work identically to add_files
+    ,MEMBER PROCEDURE add_file(
+        p_name          VARCHAR2
+        ,p_date         DATE DEFAULT SYSDATE
+    )
+    -- callable in a chain
+    ,MEMBER FUNCTION add_file(
+        p_name          VARCHAR2
         ,p_date         DATE DEFAULT SYSDATE
     ) RETURN app_zip_udt
 );

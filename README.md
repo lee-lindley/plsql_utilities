@@ -21,11 +21,12 @@ per the MIT license, others are already public domain. Included are
 4. [app_parameter](#app_parameter)
 5. [arr_arr_clob_udt](#arr_arr_clob_udt)
 6. [arr_varchar2_udt](#arr_varchar2_udt)
-7. [split](#split)
-8. [to_zoned_decimal](#to_zoned_decimal)
-9. [as_zip](#as_zip)
-10. [app_zip](#app_zip)
-11. [app_dbms_sql](#app_dbms_sql)
+7. [arr_integer_udt](#arr_integer_udt)
+8. [split](#split)
+9. [to_zoned_decimal](#to_zoned_decimal)
+10. [as_zip](#as_zip)
+11. [app_zip](#app_zip)
+12. [app_dbms_sql](#app_dbms_sql)
 
 ## install.sql
 
@@ -36,11 +37,11 @@ Runs each of these scripts in correct order.
 *app_zip* depends on [as_zip](#as_zip), [app_lob](#app_lob), [arr_varchar2_udt](#arr_varchar2_udt), and [split](#split).
 
 Other than those, you can compile these separately or not at all. If you run *install.sql*
-as is, it will install 10 of the 11 components (and sub-components).
+as is, it will install 11 of the 12 components (and sub-components).
 
 The compile for [app_dbms_sql](#app_dbms_sql) is commented out. It is generally compiled from a repository
 that includes *plsql_utilities* as a submodule. It requires [arr_arr_clob_udt](#arr_arr_clob_udt)
-and [arr_varchar2_udt](#arr_varchar2_udt).
+[arr_integer_udt](#arr_integer_udt), and [arr_varchar2_udt](#arr_varchar2_udt).
 
 ## app_lob
 
@@ -309,49 +310,72 @@ The method interface is:
         ,p_name     VARCHAR2
         ,p_date     DATE DEFAULT SYSDATE
     )
+    -- callable in a chain
     ,MEMBER FUNCTION add_blob(
         p_blob      BLOB
         ,p_name     VARCHAR2
         ,p_date     DATE DEFAULT SYSDATE
     ) RETURN app_zip_udt
+    --
     ,MEMBER PROCEDURE add_clob(
         p_clob      CLOB
         ,p_name     VARCHAR2
         ,p_date     DATE DEFAULT SYSDATE
     )
+    -- callable in a chain
     ,MEMBER FUNCTION add_clob(
         p_clob      CLOB
         ,p_name     VARCHAR2
         ,p_date     DATE DEFAULT SYSDATE
     ) RETURN app_zip_udt
+    --
+    -- I never should have differentiated between add_file and add_files plural.
+    -- You can use either name. If the file name string contains a comma, it will split it as
+    -- multiple files.
+    --
     ,MEMBER PROCEDURE add_file(
         p_dir       VARCHAR2
         ,p_name     VARCHAR2
         ,p_date     DATE DEFAULT SYSDATE
     )
+    -- callable in a chain
     ,MEMBER FUNCTION add_file(
         p_dir       VARCHAR2
         ,p_name     VARCHAR2
         ,p_date     DATE DEFAULT SYSDATE
     ) RETURN app_zip_udt
-    -- comma separated list of file names
+    -- comma separated list of file names (or not)
     ,MEMBER PROCEDURE add_files(
         p_dir           VARCHAR2
         ,p_name_list    VARCHAR2
         ,p_date         DATE DEFAULT SYSDATE
     )
+    -- callable in a chain
     ,MEMBER FUNCTION add_files(
         p_dir           VARCHAR2
         ,p_name_list    VARCHAR2
         ,p_date         DATE DEFAULT SYSDATE
     ) RETURN app_zip_udt
+    --
     -- names should have dir as first component before slash
+    --
     ,MEMBER PROCEDURE add_files(
         p_name_list     VARCHAR2
         ,p_date         DATE DEFAULT SYSDATE
     )
+    -- callable in a chain
     ,MEMBER FUNCTION add_files(
         p_name_list     VARCHAR2
+        ,p_date         DATE DEFAULT SYSDATE
+    ) RETURN app_zip_udt
+    -- these work identically to add_files
+    ,MEMBER PROCEDURE add_file(
+        p_name          VARCHAR2
+        ,p_date         DATE DEFAULT SYSDATE
+    )
+    -- callable in a chain
+    ,MEMBER FUNCTION add_file(
+        p_name          VARCHAR2
         ,p_date         DATE DEFAULT SYSDATE
     ) RETURN app_zip_udt
 ```
@@ -366,6 +390,8 @@ Example:
         l_z.add_clob('some text in a clob', 'folder_x/y.txt');
         l_z.add_files('TMP_DIR', 'x.txt,y.xlsx,z.csv');
         l_z.add_files('TMP_DIR/a.txt, TMP_DIR/b.xlsx, TMP_DIR/c.csv');
+        l_z.add_files('TMPDIR/z.pdf');
+        l_z.add_file('TMPDIR/sample.pdf');
         l_zip := l_z.get_zip;
         INSERT INTO mytable(file_name, blob_content) VALUES ('my_zip_file.zip', l_zip);
         COMMIT;
@@ -456,7 +482,7 @@ Inherits methods from *app_dbms_sql_udt*.
         ,p_default_date_fmt     VARCHAR2 := 'MM/DD/YYYY'
         ,p_default_interval_fmt VARCHAR2 := NULL
     ) RETURN SELF AS RESULT
-    -- you only need this procedure if you are subtyping app_dbms_sql_udt.
+    -- you only need this procedure if you are subtyping app_dbms_sql_str_udt.
     ,FINAL MEMBER PROCEDURE app_dbms_sql_str_constructor(
         SELF IN OUT NOCOPY      app_dbms_sql_str_udt
         ,p_cursor               SYS_REFCURSOR

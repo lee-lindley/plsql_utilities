@@ -61,7 +61,11 @@ CREATE OR REPLACE TYPE BODY app_zip_udt AS
         ,p_date     DATE DEFAULT SYSDATE
     ) IS
     BEGIN
-        add_blob(app_lob.filetoblob(p_dir, p_name) ,p_name, p_date);
+        IF instr(p_name,',') = 0 THEN
+            add_blob(app_lob.filetoblob(p_dir, p_name) ,p_name, p_date);
+        ELSE
+            add_files(p_dir ,p_name, p_date);
+        END IF;
     END;
     MEMBER FUNCTION add_file(
         p_dir       VARCHAR2
@@ -85,7 +89,7 @@ CREATE OR REPLACE TYPE BODY app_zip_udt AS
         v_arr := split(p_name_list);
         FOR i IN 1..v_arr.COUNT
         LOOP
-            add_file(p_dir, v_arr(i), p_date);
+            add_blob(app_lob.filetoblob(p_dir, v_arr(i)) ,v_arr(i), p_date);
         END LOOP;
     END;
     MEMBER FUNCTION add_files(
@@ -99,7 +103,6 @@ CREATE OR REPLACE TYPE BODY app_zip_udt AS
         l_self.add_files(p_dir, p_name_list, p_date);
         RETURN l_self;
     END;
-
 
     MEMBER PROCEDURE add_files(
         p_name_list     VARCHAR2
@@ -117,7 +120,7 @@ CREATE OR REPLACE TYPE BODY app_zip_udt AS
             IF v_dir IS NULL OR v_name IS NULL THEN
                 raise_application_error(-20807, 'p_name_list element '||TO_CHAR(i)||' value("'||v_arr(i)||'") did not contain dir/name string');
             END IF;
-            add_file(v_dir, v_name, p_date);
+            add_blob(app_lob.filetoblob(v_dir, v_name) ,v_name, p_date);
         END LOOP;
     END;
     MEMBER FUNCTION add_files(
@@ -131,6 +134,24 @@ CREATE OR REPLACE TYPE BODY app_zip_udt AS
         RETURN l_self;
     END;
 
+    -- never should have differentiated between add_file and add_files
+    MEMBER PROCEDURE add_file(
+        p_name      VARCHAR2
+        ,p_date     DATE DEFAULT SYSDATE
+    ) IS
+    BEGIN
+        add_files(p_name, p_date);
+    END;
+    MEMBER FUNCTION add_file(
+        p_name          VARCHAR2
+        ,p_date         DATE DEFAULT SYSDATE
+    ) RETURN app_zip_udt
+    IS
+        l_self  app_zip_udt := SELF;
+    BEGIN
+        l_self.add_files(p_name, p_date);
+        RETURN l_self;
+    END;
 
 END;
 /
