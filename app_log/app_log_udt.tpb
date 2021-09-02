@@ -5,6 +5,16 @@ CREATE OR REPLACE TYPE BODY app_log_udt AS
     )
     RETURN SELF AS RESULT
     IS
+    BEGIN
+        SELF.app_log_udt_constructor(p_app_name);
+        RETURN;
+    END; -- end constructor app_log_udt
+
+    FINAL MEMBER PROCEDURE app_log_udt_constructor(
+        SELF IN OUT app_log_udt
+        ,p_app_name VARCHAR2
+    )
+    IS
         -- we create the log messages independent from the main body who may commit or rollback separately
         PRAGMA AUTONOMOUS_TRANSACTION;
     BEGIN
@@ -20,10 +30,9 @@ CREATE OR REPLACE TYPE BODY app_log_udt AS
                 INSERT INTO app_log_app(app_id, app_name) VALUES (SELF.app_id, SELF.app_name);
                 COMMIT;
         END;
-        RETURN;
-    END; -- end constructor app_log_udt
+    END app_log_udt_constructor; 
 
-    MEMBER PROCEDURE log(p_msg VARCHAR2)
+    FINAL MEMBER PROCEDURE log(p_msg VARCHAR2)
     IS
         -- we create the log messages independent from the main body who may commit or rollback separately
         PRAGMA AUTONOMOUS_TRANSACTION;
@@ -31,34 +40,36 @@ CREATE OR REPLACE TYPE BODY app_log_udt AS
         -- we silently truncate the message to fit the 4000 char column
         INSERT INTO app_log(app_id, ts, msg) VALUES (SELF.app_id, CURRENT_TIMESTAMP, SUBSTR(p_msg,1,4000));
         COMMIT;
-    END; -- end procedure log
+    END log
+    ; 
 
-    MEMBER PROCEDURE log_p(p_msg VARCHAR2)
+    FINAL MEMBER PROCEDURE log_p(p_msg VARCHAR2)
     IS
     -- log and print to console
     BEGIN
         -- note that we do not truncate the message for dbms_output
         DBMS_OUTPUT.PUT_LINE(app_name||' logmsg: '||p_msg);
         SELF.log(p_msg); 
-    END; -- end procedure log_p
+    END log_p
+    ; 
 
 
-    STATIC PROCEDURE log(p_app_name VARCHAR2, p_msg VARCHAR2)
+    FINAL STATIC PROCEDURE log(p_app_name VARCHAR2, p_msg VARCHAR2)
     IS
         l app_log_udt := app_log_udt(p_app_name);
     BEGIN
         l.log(p_msg);
-    END
+    END log
     ;
-    STATIC PROCEDURE log_p(p_app_name VARCHAR2, p_msg VARCHAR2)
+    FINAL STATIC PROCEDURE log_p(p_app_name VARCHAR2, p_msg VARCHAR2)
     IS
         l app_log_udt := app_log_udt(p_app_name);
     BEGIN
         l.log_p(p_msg);
-    END
+    END log_p
     ;
 
-    STATIC PROCEDURE purge_old(p_days NUMBER := 90)
+    FINAL STATIC PROCEDURE purge_old(p_days NUMBER := 90)
     IS
         v_log_obj       app_log_udt := app_log_udt('app_log');
         v_which_table   VARCHAR2(128); -- 30 is true max, but many dba tables allow 128

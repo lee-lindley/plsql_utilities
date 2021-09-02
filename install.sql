@@ -18,6 +18,10 @@ prompt split.sql
 define subdir=app_log
 prompt calling &&subdir/install_app_log.sql
 @&&subdir/install_app_log.sql
+-- see define use_html_email in install_app_job_log.sql
+define subdir=app_job_log
+prompt calling &&subdir/install_app_job_log.sql
+@&&subdir/install_app_job_log.sql
 --
 define subdir=app_parameter
 prompt &&subdir/install_app_parameter.sql

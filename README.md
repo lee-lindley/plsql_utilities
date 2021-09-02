@@ -18,15 +18,16 @@ per the MIT license, others are already public domain. Included are
 1. [install.sql](#installsql)
 2. [app_lob](#app_lob)
 3. [app_log](#app_log)
-4. [app_parameter](#app_parameter)
-5. [arr_arr_clob_udt](#arr_arr_clob_udt)
-6. [arr_varchar2_udt](#arr_varchar2_udt)
-7. [arr_integer_udt](#arr_integer_udt)
-8. [split](#split)
-9. [to_zoned_decimal](#to_zoned_decimal)
-10. [as_zip](#as_zip)
-11. [app_zip](#app_zip)
-12. [app_dbms_sql](#app_dbms_sql)
+4. [app_job_log](#app_job_log)
+5. [app_parameter](#app_parameter)
+6. [arr_arr_clob_udt](#arr_arr_clob_udt)
+7. [arr_varchar2_udt](#arr_varchar2_udt)
+8. [arr_integer_udt](#arr_integer_udt)
+9. [split](#split)
+10. [to_zoned_decimal](#to_zoned_decimal)
+11. [as_zip](#as_zip)
+12. [app_zip](#app_zip)
+13. [app_dbms_sql](#app_dbms_sql)
 
 ## install.sql
 
@@ -36,16 +37,19 @@ Runs each of these scripts in correct order.
 
 *app_zip* depends on [as_zip](#as_zip), [app_lob](#app_lob), [arr_varchar2_udt](#arr_varchar2_udt), and [split](#split).
 
+*app_job_log* depends on [app_log](#app_log), and optionally on [html_email](https://github.com/lee-lindley/html_email)
+if you set the compile directive define use_html_email to 'TRUE' in *app_job_log/install_app_job_log.sql*.
+
 Other than those, you can compile these separately or not at all. If you run *install.sql*
-as is, it will install 11 of the 12 components (and sub-components).
+as is, it will install 12 of the 13 components (and sub-components).
 
 The compile for [app_dbms_sql](#app_dbms_sql) is commented out. It is generally compiled from a repository
-that includes *plsql_utilities* as a submodule. It requires [arr_arr_clob_udt](#arr_arr_clob_udt)
+that includes *plsql_utilities* as a submodule. It requires [arr_arr_clob_udt](#arr_arr_clob_udt),
 [arr_integer_udt](#arr_integer_udt), and [arr_varchar2_udt](#arr_varchar2_udt).
 
 ## app_lob
 
-Four LOB functions and procedures that should be in *DBMS_LOB* IMHO. The names are description enough.
+Package *app_lob* supplies four LOB functions and procedures that should be in *DBMS_LOB* IMHO. The names are description enough.
 
 - blobtofile
 ```sql
@@ -79,6 +83,11 @@ Four LOB functions and procedures that should be in *DBMS_LOB* IMHO. The names a
     ) RETURN CLOB
     ;
 ```
+Example:
+```sql
+    SELECT app_lob.filetoblob('TMP_DIR', 'some_file_i_wrote.zip') AS zip_file FROM dual;
+```
+Then from sqldeveloper or toad you can save the resulting BLOB to a file on your client machine.
 
 ## app_log
 
@@ -89,21 +98,28 @@ you can get status of the program before "successful" completion that might be
 required for dbms_output. In addition to generally useful logging, 
 it (or something like it) is indispensable for debugging and development.
 
-The method interface is:
+The type specification is declared with the *NOT FINAL* clause so that it is eligible
+to be a supertype.
+
+The method interface for *app_log_udt* is:
 ```sql
     -- member functions and procedures
     ,CONSTRUCTOR FUNCTION app_log_udt(p_app_name VARCHAR2)
         RETURN SELF AS RESULT
-    ,MEMBER PROCEDURE log(p_msg VARCHAR2)
-    ,MEMBER PROCEDURE log_p(p_msg VARCHAR2) -- prints with dbms_output and then logs
+    ,FINAL MEMBER PROCEDURE app_log_udt_constructor(
+        SELF IN OUT app_log_udt
+        ,p_app_name VARCHAR2
+    )
+    ,FINAL MEMBER PROCEDURE log(p_msg VARCHAR2)
+    ,FINAL MEMBER PROCEDURE log_p(p_msg VARCHAR2) -- prints with dbms_output and then logs
     -- these are not efficient, but not so bad in an exception block.
     -- You do not have to declare a variable to hold the instance because it is temporary
-    ,STATIC PROCEDURE log(p_app_name VARCHAR2, p_msg VARCHAR2) 
-    ,STATIC PROCEDURE log_p(p_app_name VARCHAR2, p_msg VARCHAR2) 
+    ,FINAL STATIC PROCEDURE log(p_app_name VARCHAR2, p_msg VARCHAR2) 
+    ,FINAL STATIC PROCEDURE log_p(p_app_name VARCHAR2, p_msg VARCHAR2) 
     -- should only be used by the schema owner, but only trusted application accounts
     -- are getting execute on this udt, so fine with me. If you are concerned, then
     -- break this procedure out standalone
-    ,STATIC PROCEDURE purge_old(p_days NUMBER := 90)
+    ,FINAL STATIC PROCEDURE purge_old(p_days NUMBER := 90)
 ```
 
 Example Usage:
@@ -159,6 +175,113 @@ TIME_STAMP    ELAPSED     LOGMSG                                                
 17:16.50.42      7.1317   random sleep test starting for 9                                              APP_LOG
 17:16.50.87       .4506   random sleep test starting for 10                                             APP_LOG
 ```
+## app_job_log
+
+A subtype of [app_log_udt](#app_log), *app_job_log_udt* extends the logging facility
+with methods suitable for marking the start and end of a batch job as well as
+reporting errors. In particular the *jfailed* and *log_trace* methods simplify standardization
+of a PL/SQL procedure EXCEPTION block. The standard message pattern for job startup and completion
+logging makes it convenient to create analytic queries to analyze job history. Although your
+job scheduling tool likely provides a way to do this, the database logs may give you greater
+flexibility.
+
+The type is optionally compiled with support for sending an email message for job failure
+using [html_email](https://github.com/lee-lindley/html_email). Assuming you have already
+installed *html_email*, see *app_job_log/install_app_job_log.sql*
+for setting a compile directive to include it. Since *html_email* is dependent on *plsql_utilities*,
+you may wind up recompiling it with the define set to 'TRUE' later.
+
+The method interface for *app_job_log_udt* is (assuming use_html_email==TRUE):
+```sql
+    CONSTRUCTOR FUNCTION app_job_log_udt(
+        p_job_name      VARCHAR2 -- will be converted to upper case and stored in app_name attribute
+        ,p_email_to     VARCHAR2 DEFAULT NULL
+    ) RETURN SELF AS RESULT
+    --
+    -- call jstart (job start) at the start of your job, usually right after
+    -- calling the constructuor. Puts a standard message in the log
+    ,MEMBER PROCEDURE jstart(
+        SELF IN OUT app_job_log_udt
+    )
+    -- call jdone (job done) upon successful completion of an entire job
+    ,MEMBER PROCEDURE jdone(
+        SELF IN OUT app_job_log_udt
+        -- optionally send an email message about job succses and perhaps additional instructions
+        -- Puts a standard message in the log. p_msg does not go in the log - just in the email
+        ,p_msg          VARCHAR2 DEFAULT NULL
+        ,p_do_email     BOOLEAN DEFAULT FALSE
+    )
+    -- call jfailed just before the final raise of your error (or exit).
+    -- puts a standard message in the log.
+    -- puts all 3 non null CLOBS in the log.
+    ,MEMBER PROCEDURE jfailed(
+        SELF IN OUT app_job_log_udt
+        ,p_msg          CLOB DEFAULT NULL -- sqlerrm or anything else
+        ,p_backtrace    CLOB DEFAULT NULL
+        ,p_callstack    CLOB DEFAULT NULL
+        -- if do_email is TRUE, sends a failure email with the three clobs
+        -- in HTML <CODE> blocks if not null.
+        ,p_do_email     BOOLEAN DEFAULT FALSE
+    )
+    -- same as jfailed, but does not write 'FAILED job ' log message
+    ,MEMBER PROCEDURE log_trace(
+        SELF IN OUT app_job_log_udt
+        ,p_msg          CLOB DEFAULT NULL -- sqlerrm or anything else
+        ,p_backtrace    CLOB DEFAULT NULL
+        ,p_callstack    CLOB DEFAULT NULL
+        ,p_do_email     BOOLEAN DEFAULT FALSE
+    )
+    ,MEMBER PROCEDURE add_email_address(
+        SELF IN OUT app_job_log_udt
+        ,p_email_to     VARCHAR2
+    )
+    --
+    -- if you want to send error email separate from jfailed, these will usually
+    -- suffice. Still call jfailed, perhaps with no args.
+    --
+    ,MEMBER PROCEDURE email_error(
+        SELF IN OUT app_job_log_udt
+        ,p_msg          CLOB
+        ,p_do_log       BOOLEAN DEFAULT TRUE
+    )
+    ,MEMBER PROCEDURE email_error_bold(
+        SELF IN OUT app_job_log_udt
+        ,p_msg          CLOB
+        ,p_do_log       BOOLEAN DEFAULT TRUE
+    )
+    ,MEMBER PROCEDURE email_error_code(
+        SELF IN OUT app_job_log_udt
+        ,p_msg          CLOB
+        ,p_do_log       BOOLEAN DEFAULT TRUE
+    )
+```
+Example Usage:
+```sql
+    CREATE OR REPLACE PROCEDURE my_job_procedure 
+    IS
+        ...
+        v_log   app_job_log('MY_DAILY_JOB', 'appsupport@mycompany.com');
+    BEGIN
+        v_log.jstart;
+        ...
+        v_log.log_p('start of long running dml'); 
+        ...
+        v_log.log_p('inserted '||TO_CHAR(SQL%ROWCOUNT)||' records into table whatever_table');
+        COMMIT;
+        ...
+        v_log.jdone;
+    EXCEPTION WHEN OTHERS THEN
+        g_log.jfailed(
+            p_msg           => SQLERRM
+            ,p_backtrace    => DBMS_UTILITY.FORMAT_ERROR_BACKTRACE
+            ,p_callstack    => DBMS_UTILITY.FORMAT_CALL_STACK
+            ,p_do_email     => TRUE
+        );
+        ROLLBACK;
+        RAISE;
+    END my_job_procedure;
+```
+
 ## app_parameter
 
 General purpose application parameter set/get functionality with auditable history of changes.
@@ -224,6 +347,12 @@ and *arr_clob_udt* in the other files you deploy.
 
 User Defined Type Table of VARCHAR2(4000) required for some of these utilities. If you already
 have one of these, by all means use it instead. Replace all references to *arr_varchar2_udt*
+in the other files you deploy.
+
+## arr_integer_udt
+
+User Defined Type Table of INTEGER required for some of these utilities. If you already
+have one of these, by all means use it instead. Replace all references to *arr_integer_udt*
 in the other files you deploy.
 
 ## split
@@ -431,10 +560,9 @@ You have no reason to use this package directly because you can just as easily
 do the conversion to text in SQL. The type is used by a facility to create CSV rows
 (taking care of proper quoting), as well as a facility that creates PDF report files.
 
-Unless you are trying to create a generic utility (such as those just mentioned) 
-that can handle any query sent it's way,
-you almost certainly would be better off using native dynamic sql, or at worst, using DBMS_SQL
-directly. 
+Unless you are trying to create a generic utility that can handle any query sent its 
+way (such as those just mentioned), you almost certainly would be better off using 
+native dynamic sql, or at worst, using DBMS_SQL directly. 
 
 DBMS_SQL is an imperfect interface. This is a little better, but only because we are 
 returning strings for all values.  The *ANYDATA* interface is grossly inefficient used directly 
@@ -442,6 +570,8 @@ inside PL/SQL as each call goes out to the SQL engine, so it is not a viable ans
 It is a hard problem, but an easy button (or at least easier) may be available
 with Polymorphic Table Functions come Oracle 18c (I'm still supporting 12c), though that seems 
 overly complicated on first blush too. 
+
+The file *app_dbms_sql/test/test1.sql* has an example of using it directly.
 
 ### app_dbms_sql_udt
 

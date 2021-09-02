@@ -77,16 +77,22 @@ THE SOFTWARE.
     -- member functions and procedures
     ,CONSTRUCTOR FUNCTION app_log_udt(p_app_name VARCHAR2)
         RETURN SELF AS RESULT
-    ,MEMBER PROCEDURE log(p_msg VARCHAR2)
-    ,MEMBER PROCEDURE log_p(p_msg VARCHAR2) -- prints with dbms_output and then logs
+    ,FINAL MEMBER PROCEDURE app_log_udt_constructor(
+        SELF IN OUT app_log_udt
+        ,p_app_name VARCHAR2
+    )
+    ,FINAL MEMBER PROCEDURE log(p_msg VARCHAR2)
+    ,FINAL MEMBER PROCEDURE log_p(p_msg VARCHAR2) -- prints with dbms_output and then logs
     -- these are not efficient, but not so bad in an exception block.
     -- You do not have to declare a variable to hold the instance because it is temporary
-    ,STATIC PROCEDURE log(p_app_name VARCHAR2, p_msg VARCHAR2) 
-    ,STATIC PROCEDURE log_p(p_app_name VARCHAR2, p_msg VARCHAR2) 
+    ,FINAL STATIC PROCEDURE log(p_app_name VARCHAR2, p_msg VARCHAR2) 
+    ,FINAL STATIC PROCEDURE log_p(p_app_name VARCHAR2, p_msg VARCHAR2) 
     -- should only be used by the schema owner, but only trusted application accounts
     -- are getting execute on this udt, so fine with me. If you are concerned, then
     -- break this procedure out standalone
-    ,STATIC PROCEDURE purge_old(p_days NUMBER := 90)
-);
+    ,FINAL STATIC PROCEDURE purge_old(p_days NUMBER := 90)
+)
+NOT FINAL
+;
 /
 show errors
