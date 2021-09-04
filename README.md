@@ -271,7 +271,7 @@ Example Usage:
         ...
         v_log.jdone;
     EXCEPTION WHEN OTHERS THEN
-        g_log.jfailed(
+        v_log.jfailed(
             p_msg           => SQLERRM
             ,p_backtrace    => DBMS_UTILITY.FORMAT_ERROR_BACKTRACE
             ,p_callstack    => DBMS_UTILITY.FORMAT_CALL_STACK
@@ -588,13 +588,14 @@ The file *app_dbms_sql/test/test1.sql* has an example of using it directly.
     ,FINAL MEMBER FUNCTION get_column_types   RETURN arr_varchar2_udt
     -- should only call after completing read of all rows
     ,FINAL MEMBER FUNCTION get_row_count RETURN INTEGER
-    --
-    -- you probably have no need to use this procedure
-    -- which is called from get_next_column_values in subtypes
+    -- called from fetch_next_row, subtypes must provide the code
+    -- The contract of this method is to set row_index, rows_fetched,
+    -- and total_rows_fetched while also storing the bulk collected
+    -- values for retrieval.
     ,NOT INSTANTIABLE MEMBER PROCEDURE fetch_rows(
         SELF IN OUT NOCOPY  app_dbms_sql_udt
     )
-    -- expects to call fetch_rows which must set row_index, rows_fetched and total_rows_fetched
+    -- will call fetch_rows that subtype provides
     ,FINAL MEMBER PROCEDURE fetch_next_row(
         SELF IN OUT NOCOPY  app_dbms_sql_udt
     )
@@ -628,12 +629,13 @@ Inherits methods from *app_dbms_sql_udt*.
         ,p_fmt              VARCHAR2
     )
     -- each call returns a row as an array of clob values in p_arr_clob
+    -- sets p_arr_clob to NULL when all rows are done
     ,FINAL MEMBER PROCEDURE get_next_column_values(
         SELF     IN OUT NOCOPY app_dbms_sql_str_udt
         ,p_arr_clob OUT NOCOPY arr_clob_udt
     ) 
     --
-    -- you probably have no need to use these to procedures
+    -- you have no need to use these two procedures
     -- which are called from get_next_column_values
     ,FINAL MEMBER PROCEDURE get_column_values(
         SELF     IN OUT NOCOPY app_dbms_sql_str_udt

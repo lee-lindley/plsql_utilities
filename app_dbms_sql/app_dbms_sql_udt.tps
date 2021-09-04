@@ -66,13 +66,14 @@ SOFTWARE.
     ,FINAL MEMBER FUNCTION get_column_types   RETURN arr_integer_udt
     -- should only call after completing read of all rows
     ,FINAL MEMBER FUNCTION get_row_count RETURN INTEGER
-    --
-    -- you probably have no need to use this procedure
-    -- which is called from get_next_column_values in subtypes
+    -- called from fetch_next_row, subtypes must provide the code
+    -- The contract of this method is to set row_index, rows_fetched,
+    -- and total_rows_fetched while also storing the bulk collected
+    -- values for retrieval.
     ,NOT INSTANTIABLE MEMBER PROCEDURE fetch_rows(
         SELF IN OUT NOCOPY  app_dbms_sql_udt
     )
-    -- expects to call fetch_rows which must set row_index, rows_fetched and total_rows_fetched
+    -- will call fetch_rows that subtype provides
     ,FINAL MEMBER PROCEDURE fetch_next_row(
         SELF IN OUT NOCOPY  app_dbms_sql_udt
     )

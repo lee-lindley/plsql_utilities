@@ -84,12 +84,14 @@ SOFTWARE.
         ,p_col_index        BINARY_INTEGER
         ,p_fmt              VARCHAR2
     )
+    -- each call returns a row as an array of clob values in p_arr_clob
+    -- sets p_arr_clob to NULL when all rows are done
     ,FINAL MEMBER PROCEDURE get_next_column_values(
         SELF     IN OUT NOCOPY app_dbms_sql_str_udt
         ,p_arr_clob OUT NOCOPY arr_clob_udt
     ) 
     --
-    -- you probably have no need to use these to procedures
+    -- you have no need to use these two procedures
     -- which are called from get_next_column_values
     ,FINAL MEMBER PROCEDURE get_column_values(
         SELF     IN OUT NOCOPY app_dbms_sql_str_udt
