@@ -92,8 +92,12 @@ SOFTWARE.
             v_ri := total_rows_fetched;
             --
             total_rows_fetched := total_rows_fetched + rows_fetched;
-            -- grab this fetch batch into the tables, but first clear out
-            -- the existing rows so we do not use too much memory.
+            -- for each column grab the bulk fetch set of column values into a local
+            -- array. Loop through that set converting each value into a string and store
+            -- it into our fetch buffer which is indexed by  row,column where row in this context
+            -- is from the set of our current bulk fetch. The index into the local array containing
+            -- the values for one column is the actual row count of the sql cursor.
+            -- At the end of the loop we will have all of the values for all of the rows in our fetch buffer.
             FOR i IN 1..col_cnt
             LOOP
               CASE col_types(i)
@@ -104,6 +108,8 @@ SOFTWARE.
                         DBMS_SQL.column_value(ctx, i, l_t);
                         FOR j IN 1..rows_fetched
                         LOOP
+                            -- buf(this row from this bulk fetch starting at 1)(this column starting at 1)
+                            -- l_t(rows already fetched + this row from this bulk fetch)
                             buf(j)(i) := l_t(v_ri + j);
                         END LOOP;
                     END;
