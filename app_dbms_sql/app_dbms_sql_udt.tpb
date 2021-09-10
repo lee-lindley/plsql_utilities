@@ -63,19 +63,22 @@ SOFTWARE.
     END;
     */
 
+     FINAL MEMBER PROCEDURE set_column_name(
+        SELF IN OUT NOCOPY      app_dbms_sql_udt
+        ,p_col_index            INTEGER
+        ,p_col_name             VARCHAR2
+    ) IS
+    BEGIN
+        IF p_col_index NOT BETWEEN 1 AND col_cnt THEN
+            raise_application_error(-20876, 'set_column_name called with index '||TO_CHAR(p_col_index)||' not between 1 and '||TO_CHAR(col_cnt));
+        END IF;
+        col_names(p_col_index) := p_col_name;
+    END set_column_name;
+
     FINAL MEMBER FUNCTION get_column_names RETURN arr_varchar2_udt
     IS
-        v_a     arr_varchar2_udt := arr_varchar2_udt();
-        v_t     DBMS_SQL.desc_tab3;
-        v_i     INTEGER;
     BEGIN
-        DBMS_SQL.describe_columns3(ctx, v_i, v_t);
-        v_a.EXTEND(col_cnt);
-        FOR i IN 1..v_a.COUNT
-        LOOP
-            v_a(i) := v_t(i).col_name;
-        END LOOP;
-        RETURN v_a;
+        RETURN col_names;
     END get_column_names;
 
     FINAL MEMBER FUNCTION get_column_types RETURN arr_integer_udt
@@ -148,10 +151,13 @@ SOFTWARE.
 
         col_types   := arr_integer_udt();
         col_types.EXTEND(col_cnt);
+        col_names   := arr_varchar2_udt();
+        col_names.EXTEND(col_cnt);
         -- have dbms_sql define the bulk column associative arrays
         FOR i IN 1..col_cnt
         LOOP
             col_types(i) := v_t(i).col_type;
+            col_names(i) := v_t(i).col_name;
             CASE col_types(i)
                 WHEN DBMS_SQL.varchar2_type THEN
                     DBMS_SQL.define_array(ctx, i, e_varchar2a, p_bulk_count, 1);

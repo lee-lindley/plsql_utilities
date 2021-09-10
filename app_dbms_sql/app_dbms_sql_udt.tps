@@ -50,6 +50,8 @@ SOFTWARE.
     ,rows_fetched           INTEGER
     ,row_index              INTEGER
     ,col_types              arr_integer_udt
+    -- added 20210910 so can override column headers with Oracle keyword values not allowed in queries
+    ,col_names              arr_varchar2_udt
     --,CONSTRUCTOR FUNCTION app_dbms_sql_udt(
     --    p_cursor                SYS_REFCURSOR
     --    ,p_bulk_count           INTEGER := 100
@@ -62,6 +64,15 @@ SOFTWARE.
     ,FINAL MEMBER FUNCTION get_ctx            RETURN INTEGER
     -- if you want it, you will have to go get it yourself using the ctx from get_ctx
     --,MEMBER FUNCTION get_desc_tab3      RETURN DBMS_SQL.desc_tab3
+    --
+    -- if you need a column header name that is an oracle reserved word you will not
+    -- be able to alias the column in the cursor query with it. You can override
+    -- it later with this procedure
+    ,FINAL MEMBER PROCEDURE set_column_name(
+        SELF IN OUT NOCOPY      app_dbms_sql_udt
+        ,p_col_index            INTEGER
+        ,p_col_name             VARCHAR2
+    )
     ,FINAL MEMBER FUNCTION get_column_names   RETURN arr_varchar2_udt
     ,FINAL MEMBER FUNCTION get_column_types   RETURN arr_integer_udt
     -- should only call after completing read of all rows

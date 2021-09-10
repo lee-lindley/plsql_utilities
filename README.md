@@ -584,6 +584,15 @@ The file *app_dbms_sql/test/test1.sql* has an example of using it directly.
     -- the DBMS_SQL context number. You can use it to get desc_tab
     -- if you need it.
     ,FINAL MEMBER FUNCTION get_ctx            RETURN INTEGER
+    --
+    -- if you need a column header name that is an oracle reserved word you will not
+    -- be able to alias the column in the cursor query with it. You can override
+    -- it later with this procedure
+    ,FINAL MEMBER PROCEDURE set_column_name(
+        SELF IN OUT NOCOPY      app_dbms_sql_udt
+        ,p_col_index            INTEGER
+        ,p_col_name             VARCHAR2
+    )
     ,FINAL MEMBER FUNCTION get_column_names   RETURN arr_varchar2_udt
     ,FINAL MEMBER FUNCTION get_column_types   RETURN arr_varchar2_udt
     -- should only call after completing read of all rows
