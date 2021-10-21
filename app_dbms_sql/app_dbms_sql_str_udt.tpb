@@ -51,6 +51,9 @@ SOFTWARE.
         v_arr_clob  arr_clob_udt := arr_clob_udt();
     BEGIN
         SELF.base_constructor(p_cursor, p_bulk_count);
+        SELF.default_num_fmt := p_default_num_fmt;
+        SELF.default_date_fmt := p_default_date_fmt;
+        SELF.default_interval_fmt := p_default_interval_fmt;
 
         -- we start with these null. They can add them to override defaults with set_formats
         arr_fmts := arr_varchar2_udt();
