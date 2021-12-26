@@ -8,12 +8,19 @@ prompt arr_arr_clob_udt.tps
 @app_types/arr_arr_clob_udt.tps
 prompt arr_varchar2_udt.tps
 @app_types/arr_varchar2_udt.tps
+prompt arr_arr_varchar2_udt.tps
+@app_types/arr_arr_varchar2_udt.tps
 prompt arr_integer_udt.tps
 @app_types/arr_integer_udt.tps
 --
+prompt transform_perl_regexp.sql
+@transform_perl_regexp.sql
 -- split requires arr_varchar2_udt or you can edit it to use your own version
 prompt split.sql
 @split.sql
+-- requires arr_arr_varchar2_udt and split
+--prompt parse_csv_clob.sql
+--@parse_csv_clob.sql
 --
 define subdir=app_log
 prompt calling &&subdir/install_app_log.sql

@@ -7,6 +7,7 @@ per the MIT license, others are already public domain. Included are
 
 * Application Logging
 * Application Parameter Facility
+* transforming Perl-style Regexp to Oracle RE
 * Splitting of CSV Strings into Fields
 * Create Zoned Decimal Strings from Numbers
 * A few LOB Utilities
@@ -23,11 +24,12 @@ per the MIT license, others are already public domain. Included are
 6. [arr_arr_clob_udt](#arr_arr_clob_udt)
 7. [arr_varchar2_udt](#arr_varchar2_udt)
 8. [arr_integer_udt](#arr_integer_udt)
-9. [split](#split)
-10. [to_zoned_decimal](#to_zoned_decimal)
-11. [as_zip](#as_zip)
-12. [app_zip](#app_zip)
-13. [app_dbms_sql](#app_dbms_sql)
+9. [transform_perl_regexp](#transform_perl_regexp)
+10. [split](#split)
+11. [to_zoned_decimal](#to_zoned_decimal)
+12. [as_zip](#as_zip)
+13. [app_zip](#app_zip)
+14. [app_dbms_sql](#app_dbms_sql)
 
 ## install.sql
 
@@ -354,6 +356,57 @@ in the other files you deploy.
 User Defined Type Table of INTEGER required for some of these utilities. If you already
 have one of these, by all means use it instead. Replace all references to *arr_integer_udt*
 in the other files you deploy.
+
+## transform_perl_regexp
+
+A function to treat the input value as a Perl-style regular expression with
+embedded comments and whitespace that must be stripped as if it were used
+with 'x' option in Perl. Although Oracle regular expression functions have an 'x'
+modifier, it does not handle comments nor can it strip whitespace without removing
+newline and tab characters.
+
+Comments are identified by a Posix [:blank:] character (space or tab for practical purposes)
+followed by either '#' or '--'. Once that pattern is found on a line, it and all following
+charcters up to the end of the line (newline not included) are removed. If you need to use ' #'
+or ' --' in your pattern, you will have to find a way to protect it (hint: put either the space
+or comment char in a character class).
+
+Following removal of comments, all whitespace (including newline) is removed as would be true for the 'x' modifier.
+
+Finally, *transform_perl_regexp* translates '\t', '\r' and '\n' tokens to the corresponding literal
+values (CHR(9), CHR(13), and CHR(10)) (after stripping whitespace!). It will not replace one
+of these if the preceding character is a '\\'. That is intended to let you write '\\\n' such that the 
+backwack is protected. It isn't clever enough to figure out '\\\\\n'. Tough. Write your own parser.
+
+This means you can write a regular expression that looks like this:
+
+```sql
+    v_re := transform_perl_regexp('
+(                               -- capture in \1
+  (                             -- going to group 0 or more of these things
+    [^"\n]+                     -- any number of chars that are not dquote or newline
+    |                           
+    "                           -- double quoted string start
+        (                       -- just grouping. Order of the next set of things matters. Longest first
+            ""                  -- literal "" which is a quoted dquoute within dquote string
+            |
+            \\"                 -- a backwacked dquote (but need to backwack the backwack)
+            |
+            [^"]                -- any character not the above two constructs or a dquote
+        )*                      -- zero or more of those chars or constructs 
+   "                            -- closing dquote
+  )*                            -- zero or more strings on a single "line" that could include newline in dquotes
+)                               -- end capture \1
+(                               -- just grouping 
+    $|\n                        -- require match newline or string end 
+)                               -- close grouping
+');
+```
+and have the RE that you hand to the Oracle procedure appear as
+
+    (([^"
+    ]+|"(""|\\"|[^"])*")*)($|
+    )
 
 ## split
 
