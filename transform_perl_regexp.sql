@@ -12,6 +12,7 @@ IS
 BEGIN
     -- note that \n and \t will be replaced if not preceded by a \
     -- \\n and \\t will not be replaced. Unfortunately, neither will \\\n or \\\t.
+    -- If you need \\\n, use \\ \n since the space will be removed.
     -- We are not parsing into tokens, so this is as close as we can get cheaply
     RETURN 
         REGEXP_REPLACE(
