@@ -18,9 +18,6 @@ prompt transform_perl_regexp.sql
 -- split requires arr_varchar2_udt or you can edit it to use your own version
 prompt split.sql
 @split.sql
--- requires arr_arr_varchar2_udt and split
---prompt parse_csv_clob.sql
---@parse_csv_clob.sql
 --
 define subdir=app_log
 prompt calling &&subdir/install_app_log.sql
