@@ -19,6 +19,11 @@ prompt transform_perl_regexp.sql
 prompt split.sql
 @split.sql
 --
+-- csv_to_table_pkg requires arr_varchar2_udt or you can edit it to use your own version
+define subdir=csv_to_table
+prompt calling &&subdir/install_csv_to_table.sql
+@&&subdir/install_csv_to_table.sql
+--
 define subdir=app_log
 prompt calling &&subdir/install_app_log.sql
 @&&subdir/install_app_log.sql

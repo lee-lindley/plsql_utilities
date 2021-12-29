@@ -1,7 +1,33 @@
 CREATE OR REPLACE PACKAGE BODY csv_to_table_pkg AS
+/*
+MIT License
 
-    g_rows_regexp   VARCHAR2(32767);
-    -- defined at the end of the package
+Copyright (c) 2022 Lee Lindley
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+*/
+
+
+    -- private functions defined at the end of the package
+    FUNCTION transform_perl_regexp(p_re VARCHAR2)
+    RETURN VARCHAR2 DETERMINISTIC
+    ;
     FUNCTION split (
         p_s            VARCHAR2
         ,p_separator    VARCHAR2    DEFAULT ','
@@ -10,49 +36,145 @@ CREATE OR REPLACE PACKAGE BODY csv_to_table_pkg AS
     ) RETURN arr_varchar2_udt DETERMINISTIC
     ;
 
+
+    --
+    -- split a clob into a row for each line.
+    -- Handle case where a "line" can have embedded LF chars per RFC for CSV format
+    -- Throw out completely blank lines (but keep track of line number)
+    --
+    FUNCTION split_clob_to_lines(p_clob CLOB)
+    RETURN t_arr_csv_row_rec
+    PIPELINED
+    IS
+        v_cnt           BINARY_INTEGER;
+        v_row           t_csv_row_rec;
+
+        v_rows_regexp   VARCHAR2(1024) := transform_perl_regexp('
+(                               # capture in \1
+  (                             # going to group 0 or more of these things
+    [^"\n\\]+                   # any number of chars that are not dquote, backwack or newline
+    |
+    (                           # just grouping for repeat
+        \\ \n                   # or a backwacked \n but put space between them so gets transformed correctly
+    )+                          # one or more protected newlines (as if they were in dquoted string)
+    |
+    (                           # just grouping for repeat
+        \\"                     # or a backwacked "
+    )+                          # one or more protected "
+    |
+    "                           # double quoted string start
+        (                       # just grouping. Order of the next set of things matters. Longest first
+            ""                  # literal "" which is a quoted dquoute within dquote string
+            |
+            \\"                 # a backwacked dquote 
+            |
+            [^"]                # any single character not the above two multi-char constructs, or a dquote
+                                #     Important! This can be embedded newlines too!
+        )*                      # zero or more of those chars or constructs 
+    "                           # closing dquote
+    |                           
+    \\                          # or a backwack, but do this last as it is the smallest and we do not want
+                                #   to consume the backwack before a newline or a dquote
+  )*                            # zero or more strings on a single "line" that could include newline in dquotes
+                                # or even a backwacked newline
+)                               # end capture \1
+(                               # just grouping 
+    $|\n                        # require match newline or string end 
+)                               # close grouping
+'       );
+    BEGIN
+        v_cnt := REGEXP_COUNT(p_clob, v_rows_regexp) - 1; -- we get an extra match on final $
+        FOR i IN 1..v_cnt
+        LOOP
+            v_row.s := REGEXP_SUBSTR(p_clob, v_rows_regexp, 1, i, NULL, 1);
+            IF v_row.s IS NOT NULL THEN
+                v_row.rn := i;
+                PIPE ROW(v_row);
+            END IF;
+        END LOOP;
+        RETURN;
+    END split_clob_to_lines
+    ;
+
+    /*
+        Expect input data to be rows of CSV lines (VARCHAR2 strings), plus 
+        an optional row number column for reporting. The optional column allows us to report
+        the rownumber in the original data before it was split into rows and handed to us.
+        The reason is that rows may be removed before we get them but we want to report
+        on the original line number.
+
+        If the optional rownumber is not included, we will use a running count.
+
+        Each CSV row string will be split into fields which will then populate the output columns
+        that will match p_table_name/p_columns names and types. Conversion from string to type
+        is part of the magic of this PTF.
+    */
     FUNCTION describe(
         p_tab IN OUT    DBMS_TF.TABLE_T
         ,p_table_name   VARCHAR2
         ,p_columns      VARCHAR2 -- csv list
-        ,p_clob         CLOB
         ,p_date_fmt     VARCHAR2 DEFAULT NULL -- uses nls_date_format if null
+        ,p_separator    VARCHAR2 DEFAULT ','
     ) RETURN DBMS_TF.DESCRIBE_T
     AS
         v_new_cols  DBMS_TF.columns_new_t;
         v_col_names arr_varchar2_udt;
 
+        -- a hash with key of column name and value of the column position in the CSV and output columns
         TYPE t_col_order IS TABLE OF BINARY_INTEGER INDEX BY VARCHAR2(128);
         v_col_order t_col_order;
+        
     BEGIN
-        IF p_tab.column.COUNT() != 1 
+        IF p_tab.column(1).description.type != DBMS_TF.type_varchar2
         THEN
-            RAISE_APPLICATION_ERROR(-20000,'Input table to csv_to_table_pkg.t should be table DUAL');
+            RAISE_APPLICATION_ERROR(-20100,'Input table to csv_to_table_pkg.ptf must have a CSV string column first that is VARCHAR2. First column was not VARCHAR2 type');
         END IF;
+        IF p_tab.column.COUNT > 2 THEN
+            RAISE_APPLICATION_ERROR(-20101,'Input table to csv_to_table_pkg.ptf must have a CSV string column first and optional rownumber. We have '||p_tab.column.COUNT()||' columns in the input, not 1 or 2.');
+        END IF;
+
         p_tab.column(1).pass_through := FALSE;
         p_tab.column(1).for_read := TRUE;
 
-        v_col_names := split(UPPER(p_columns));
+        IF p_tab.column.COUNT() = 2 THEN
+            p_tab.column(2).pass_through := FALSE;
+            p_tab.column(2).for_read := TRUE;
+            IF p_tab.column(2).description.type != DBMS_TF.type_number THEN
+                RAISE_APPLICATION_ERROR(-20102,'Input table to csv_to_table_pkg.t must have a CSV string column first and optional line number second. Our second column is not a number');
+            END IF;
+        END IF;
+
+        v_col_names := split(UPPER(p_columns), p_separator => p_separator);
         -- we need a hash to get from the column name to the index for both input csv order and output field order
+        -- We could depend on the order Oracle delivers it from the TABLE(v_col_names) construct and casual
+        -- testing says it would work, but it is not defined to do so and could break in a future release. Unlikely, but...
         FOR i IN 1..v_col_names.COUNT
         LOOP
             v_col_order(v_col_names(i)) := i;
         END LOOP;
 
+        --
+        -- Determine the datatypes of the output fields and set up to deliver them in v_new_cols
+        --
         FOR r IN (
             SELECT c.column_value AS column_name
-                ,CASE WHEN a.data_type LIKE 'TIMESTAMP%' THEN 'TIMESTAMP' ELSE a.data_type END AS data_type
+                -- we could have a table in our schema and another with same name in a different
+                -- schema that we have access to. This gives preference to the one in current schema
+                ,MAX(CASE WHEN a.data_type LIKE 'TIMESTAMP%' THEN 'TIMESTAMP' ELSE a.data_type END)
+                    KEEP (DENSE_RANK FIRST ORDER BY CASE WHEN owner = SYS_CONTEXT('USERENV','CURRENT_SCHEMA') THEN 1 ELSE 2 END)
+                AS data_type
             FROM TABLE(v_col_names) c
             LEFT OUTER JOIN all_tab_columns a
                 ON a.table_name = UPPER(p_table_name)
                     AND a.column_name = c.column_value
+            GROUP BY c.column_value
         ) LOOP
             IF r.data_type IS NULL THEN
-                RAISE_APPLICATION_ERROR(-20001,'table: '||p_table_name||' does not have a column named '||r.column_name);
+                RAISE_APPLICATION_ERROR(-20103,'table: '||p_table_name||' does not have a column named '||r.column_name);
+            ELSIF r.data_type = 'BLOB' OR r.data_type LIKE 'INTERVAL%' THEN
+                RAISE_APPLICATION_ERROR(-20104,'table: '||p_table_name||' column '||r.column_name||' is unsupported data type '||r.data_type);
             END IF;
-            IF r.data_type = 'BLOB' OR r.data_type LIKE 'INTERVAL%' THEN
-                RAISE_APPLICATION_ERROR(-20002,'table: '||p_table_name||' column '||r.column_name||' is unsupported data type '||r.data_type);
-            END IF;
-            -- we create these in any order, but they must be in the right location in the array
+            -- we create these in the order they came out of the query, but they must be in the right location in the array
             v_new_cols(v_col_order(r.column_name)) := DBMS_TF.column_metadata_t(
                                         name    => r.column_name
                                         ,type   => CASE r.data_type
@@ -69,102 +191,107 @@ CREATE OR REPLACE PACKAGE BODY csv_to_table_pkg AS
                                     );
         END LOOP;
 
-        -- we have 1 input row and MANY output rows, so replication is true
-        RETURN DBMS_TF.describe_t(new_columns => v_new_cols, row_replication => TRUE);
+        RETURN DBMS_TF.describe_t(new_columns => v_new_cols);
     END describe
     ;
 
     PROCEDURE fetch_rows(
          p_table_name   VARCHAR2
         ,p_columns      VARCHAR2 -- csv list
-        ,p_clob         CLOB
         ,p_date_fmt     VARCHAR2 DEFAULT NULL -- uses nls_date_format if null
+        ,p_separator    VARCHAR2 DEFAULT ','
     ) AS
-        v_env               DBMS_TF.env_t := DBMS_TF.get_env(); -- put_columns.count
-        v_rowset            DBMS_TF.row_set_t;
-        v_in_row_count      BINARY_INTEGER;
+        v_env               DBMS_TF.env_t ;
+        v_has_rn            BOOLEAN ;           -- whether our input rows have a line number column
         --
-        v_rowset_out        DBMS_TF.row_set_t;
-        v_col_out_cnt       BINARY_INTEGER;
-        v_output_col_type   BINARY_INTEGER;
+        v_rowset            DBMS_TF.row_set_t;  -- the input rowset of CSV rows
+        v_in_row_cnt        BINARY_INTEGER;
         --
-        v_row               CLOB;
-        v_row_cnt           BINARY_INTEGER;
-        v_col_strings       arr_varchar2_udt;
+        v_rowset_out        DBMS_TF.row_set_t;  -- the output rowset of typed data columns
+        v_col_out_cnt       BINARY_INTEGER;     -- number of columns in our output
+        v_output_col_type   BINARY_INTEGER;     -- a local holder of the column type
+        --
+        v_col_strings       arr_varchar2_udt;   -- array of strings from splitting the CSV row into fields
 
-        -- input row numbers including blank lines that can be skipped
-        g_row_num           NUMBER := 0;
-        v_rows_out          BINARY_INTEGER := 0;
+        g_row_num           NUMBER := 0;        -- the overall row number for the query of the original input lines
     BEGIN
+        v_env := DBMS_TF.get_env(); 
         -- the number of columns in our output rows should match number of csv fields
         v_col_out_cnt := v_env.put_columns.COUNT();
 
-        -- in case FETCH is called more than once (unlikely)
-        -- get does not change value if not found in store so starts with our default 0
-        --DBMS_TF.xstore_get('g_row_num', g_row_num); 
+        -- whether or not our input has a Row Number column
+        v_has_rn := v_env.get_columns.COUNT = 2;
 
-        DBMS_TF.get_row_set(v_rowset, row_count => v_in_row_count);
-        IF v_in_row_count != 1 THEN
-            RAISE_APPLICATION_ERROR(-20007,'input table should only have 1 placeholder row. Use DUAL');
+        IF NOT v_has_rn THEN
+            -- Since we do not have a line number column in our input, we have to track it ourselves
+            -- This is in case FETCH is called more than once. We get and put to the store
+            -- what the last FETCH count total was and keep adding to it.
+            -- get does not change value if not found in store so starts with our default 0 on first fetch call
+            DBMS_TF.xstore_get('g_row_num', g_row_num); 
         END IF;
-        -- we need to use count because our regexp will match an empty row. We will skip
-        -- the empty row but we need to line number to help with debug error message
-        v_row_cnt := REGEXP_COUNT(p_clob, g_rows_regexp) - 1; -- one extra matches on $
---dbms_output.put_line('got '||v_row_cnt||' rows from clob');
-        -- loop over the rows split from the input string
-        FOR i IN 1..v_row_cnt
+
+        DBMS_TF.get_row_set(v_rowset, row_count => v_in_row_cnt);
+        -- for this set of input rows on a call to fetch, iterate over the rows
+        FOR i IN 1..v_in_row_cnt
         LOOP
-            g_row_num := g_row_num + 1;
-            -- pull a line out of the text input (sans newline)
-            v_row := REGEXP_SUBSTR(p_clob, g_rows_regexp, 1, i, NULL, 1);
---dbms_output.put_line('row '||g_row_num||' : '||v_row);
-            -- split the row into csv fields stripping dquotes and unquoting chars inside dquotes
-            v_col_strings := split(v_row);
-            IF v_col_strings.COUNT = 0 THEN
-                -- just skip empty rows now that we captured the rownumber
---dbms_output.put_line('row '||g_row_num||' had 0 csv columns');
-                CONTINUE;
-            ELSIF v_col_strings.COUNT != v_col_out_cnt THEN
-                RAISE_APPLICATION_ERROR(-20003,'row '||g_row_num||' has cnt='||v_col_strings.COUNT||' csv fields, but we need '||v_col_out_cnt||' columns
-ROW: '||v_row);
+            IF v_has_rn THEN
+                -- column 2 value for this row is the input data line number
+                g_row_num := v_rowset(2).tab_number(i);
+            ELSE
+                g_row_num := g_row_num + 1;
             END IF;
---dbms_output.put_line('row '||g_row_num||' had '||v_col_strings.COUNT||' csv columns');
+
+            -- split the CSV row into column value strings taking care of any unquoting needed according to RFC for CSV
+            -- column 1, row i in the input resultset
+            v_col_strings := split(v_rowset(1).tab_varchar2(i), p_separator => p_separator, p_keep_nulls   => 'Y');
+
+            IF v_col_strings.COUNT != v_col_out_cnt THEN
+                RAISE_APPLICATION_ERROR(-20201,'row '||g_row_num||' has cnt='||v_col_strings.COUNT||' csv fields, but we need '||v_col_out_cnt||' columns
+ROW: '||v_rowset(1).tab_varchar2(i) 
+);
+            END IF;
             -- populate the output rowset column tables for this row
-            v_rows_out := v_rows_out + 1;
-            FOR j IN 1..v_col_out_cnt
-            LOOP
+            FOR j IN 1..v_col_out_cnt   -- for each column
+              LOOP
                 v_output_col_type := v_env.put_columns(j).TYPE;
-                IF v_output_col_type = DBMS_TF.type_timestamp THEN
-                    -- better set nls value yourself because we just shoving the string in with default conversion
-                    -- likely not to ever be used
-                    v_rowset_out(j).tab_timestamp(v_rows_out) := v_col_strings(j);
-                ELSIF v_output_col_type = DBMS_TF.type_binary_double THEN
-                    v_rowset_out(j).tab_binary_double(v_rows_out) := v_col_strings(j);
-				ELSIF v_output_col_type = DBMS_TF.type_binary_float THEN
-                    v_rowset_out(j).tab_binary_float(v_rows_out) := v_col_strings(j);
-				ELSIF v_output_col_type = DBMS_TF.type_char THEN
-                    v_rowset_out(j).tab_char(v_rows_out) := v_col_strings(j);
-				ELSIF v_output_col_type = DBMS_TF.type_clob THEN
-                    v_rowset_out(j).tab_clob(v_rows_out) := v_col_strings(j);
-				ELSIF v_output_col_type = DBMS_TF.type_date THEN
-                    IF p_date_fmt IS NULL THEN
-                        v_rowset_out(j).tab_date(v_rows_out) := v_col_strings(j); -- default to nls_date_fmt
-                    ELSE
-                        v_rowset_out(j).tab_date(v_rows_out) := TO_DATE(v_col_strings(j), p_date_fmt);
+                -- for most of them we depend on the default conversion from string to Oracle data type
+                BEGIN -- let us trap conversion errors and report the problem row
+                    IF v_output_col_type = DBMS_TF.type_timestamp THEN
+                        -- better set nls value yourself because we just shoving the string in with default conversion
+                        -- likely not to ever be used
+                        v_rowset_out(j).tab_timestamp(i)        := v_col_strings(j);
+                    ELSIF v_output_col_type = DBMS_TF.type_binary_double THEN
+                        v_rowset_out(j).tab_binary_double(i)    := v_col_strings(j);
+				    ELSIF v_output_col_type = DBMS_TF.type_binary_float THEN
+                        v_rowset_out(j).tab_binary_float(i)     := v_col_strings(j);
+				    ELSIF v_output_col_type = DBMS_TF.type_char THEN
+                        v_rowset_out(j).tab_char(i)             := v_col_strings(j);
+				    ELSIF v_output_col_type = DBMS_TF.type_clob THEN
+                        v_rowset_out(j).tab_clob(i)             := v_col_strings(j);
+				    ELSIF v_output_col_type = DBMS_TF.type_date THEN
+                        IF p_date_fmt IS NULL THEN
+                            v_rowset_out(j).tab_date(i)         := v_col_strings(j); -- default to nls_date_fmt
+                        ELSE
+                            v_rowset_out(j).tab_date(i)         := TO_DATE(v_col_strings(j), p_date_fmt);
+                        END IF;
+				    ELSIF v_output_col_type = DBMS_TF.type_number THEN
+                        v_rowset_out(j).tab_number(i)           := v_col_strings(j);
+                    ELSE -- in describe we made sure the only thing left is varchar2
+                        v_rowset_out(j).tab_varchar2(i)         := v_col_strings(j);
                     END IF;
-				ELSIF v_output_col_type = DBMS_TF.type_number THEN
-                    v_rowset_out(j).tab_number(v_rows_out) := v_col_strings(j);
-                ELSE -- in describe we made sure the only thing left is varchar2
-                    v_rowset_out(j).tab_varchar2(v_rows_out) := v_col_strings(j);
-                END IF;
+                EXCEPTION WHEN OTHERS THEN
+                    RAISE_APPLICATION_ERROR(-20202,'line number:'||g_row_num||' col:'||i||' 
+Line: '||v_rowset(1).tab_varchar2(i)||'
+has Oracle error: '||SQLERRM);
+                END;
             END LOOP; -- end loop on columns
         END LOOP; -- end loop on newline separated rows in clob
 
-        --DBMS_TF.xstore_set('g_row_num', g_row_num);
-        -- we got a single row of input, but are now writing v_rows_out records output.
-        -- The only way to do that is with the funky replication_factor. It was not designed
-        -- for this, but it works.
-        DBMS_TF.put_row_set(v_rowset_out, replication_factor => v_rows_out);
+        IF NOT v_has_rn THEN    -- save for possible next fetch call
+            DBMS_TF.xstore_set('g_row_num', g_row_num);
+        END IF;
+
+        DBMS_TF.put_row_set(v_rowset_out);
     END fetch_rows;
 
     FUNCTION transform_perl_regexp(p_re VARCHAR2)
@@ -176,7 +303,7 @@ ROW: '||v_row);
             '--' or '#', then everything to end of line or string
         */
         c_strip_comments_regexp CONSTANT VARCHAR2(32767) := '[[:blank:]](--|#).*($|
-    )';
+)';
     BEGIN
       -- note that \n and \t will be replaced if not preceded by a \
       -- \\n and \\t will not be replaced. Unfortunately, neither will \\\n or \\\t.
@@ -404,44 +531,8 @@ SOFTWARE.
         RETURN v_arr;
   END split
     ;
--- start package initialization block
-BEGIN
 
-    g_rows_regexp   := transform_perl_regexp('
-(                               # capture in \1
-  (                             # going to group 0 or more of these things
-    [^"\n\\]+                   # any number of chars that are not dquote, backwack or newline
-    |
-    (                           # just grouping for repeat
-        \\ \n                   # or a backwacked \n but put space between them so gets transformed correctly
-    )+                          # one or more protected newlines (as if they were in dquoted string)
-    |
-    (                           # just grouping for repeat
-        \\"                     # or a backwacked "
-    )+                          # one or more protected "
-    |
-    "                           # double quoted string start
-        (                       # just grouping. Order of the next set of things matters. Longest first
-            ""                  # literal "" which is a quoted dquoute within dquote string
-            |
-            \\"                 # a backwacked dquote 
-            |
-            [^"]                # any single character not the above two multi-char constructs, or a dquote
-                                #     Important! This can be embedded newlines too!
-        )*                      # zero or more of those chars or constructs 
-    "                           # closing dquote
-    |                           
-    \\                          # or a backwack, but do this last as it is the smallest and we do not want
-                                #   to consume the backwack before a newline or a dquote
-  )*                            # zero or more strings on a single "line" that could include newline in dquotes
-                                # or even a backwacked newline
-)                               # end capture \1
-(                               # just grouping 
-    $|\n                        # require match newline or string end 
-)                               # close grouping
-');
 
 END csv_to_table_pkg;
 /
 show errors
-

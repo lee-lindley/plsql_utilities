@@ -9,6 +9,7 @@ per the MIT license, others are already public domain. Included are
 * Application Parameter Facility
 * transforming Perl-style Regexp to Oracle RE
 * Splitting of CSV Strings into Fields
+* Parse CSV data into Oracle resultset
 * Create Zoned Decimal Strings from Numbers
 * A few LOB Utilities
 * A zip archive handler courtesy of Anton Scheffer
@@ -26,16 +27,17 @@ per the MIT license, others are already public domain. Included are
 8. [arr_integer_udt](#arr_integer_udt)
 9. [transform_perl_regexp](#transform_perl_regexp)
 10. [split](#split)
-11. [to_zoned_decimal](#to_zoned_decimal)
-12. [as_zip](#as_zip)
-13. [app_zip](#app_zip)
-14. [app_dbms_sql](#app_dbms_sql)
+11. [csv_to_table](#csv_to_table)
+12. [to_zoned_decimal](#to_zoned_decimal)
+13. [as_zip](#as_zip)
+14. [app_zip](#app_zip)
+15. [app_dbms_sql](#app_dbms_sql)
 
 ## install.sql
 
 Runs each of these scripts in correct order.
 
-*split* depends upon [arr_varchar2_udt](#arr_varchar2_udt). 
+*split* and *csv_to_table* depend upon [arr_varchar2_udt](#arr_varchar2_udt). 
 
 *app_zip* depends on [as_zip](#as_zip), [app_lob](#app_lob), [arr_varchar2_udt](#arr_varchar2_udt), and [split](#split).
 
@@ -438,6 +440,71 @@ FUNCTION split (
     ,p_strip_dquote VARCHAR2    DEFAULT 'Y' -- also "unquotes" \" and "" pairs within a double quotes string to "
 ) RETURN arr_varchar2_udt DETERMINISTIC
 -- when p_s IS NULL returns initialized collection with COUNT=0
+```
+
+## csv_to_table
+
+Given a set of rows containing CSV strings, or a CLOB containing multiple lines of CSV strings,
+split the records into component column values and return a resultset
+that appears as if it was read from 
+a table in your schema (or a table to which you have SELECT priv).
+We provide a Polymorphic Table Function for your use to achieve this.
+
+You can either start with a set of CSV strings as rows, or with a CLOB
+that contains multiple lines, each of which are a CSV record. Note that 
+this is a full blown CSV parser that should handle any records that comply
+with RFC4180 (See https://www.loc.gov/preservation/digital/formats/fdd/fdd000323.shtml).
+
+```sql
+    FUNCTION ptf(
+        p_tab           TABLE
+        ,p_table_name   VARCHAR2
+        ,p_columns      VARCHAR2 -- csv list
+        ,p_date_fmt     VARCHAR2 DEFAULT NULL -- uses nls_date_format if null
+        ,p_separator    VARCHAR2 DEFAULT ','
+    ) RETURN TABLE
+    PIPELINED ROW POLYMORPHIC USING csv_to_table_pkg
+    ;
+
+    -- public type to be returned by split_clob_to_lines PIPE ROW function
+    TYPE t_csv_row_rec IS RECORD(
+        s   VARCHAR2(4000)  -- the csv row
+        ,rn NUMBER          -- line number in the input
+    );
+    TYPE t_arr_csv_row_rec IS TABLE OF t_csv_row_rec;
+
+    --
+    -- split a clob into a row for each line.
+    -- Handle case where a "line" can have embedded LF chars per RFC for CSV format
+    -- Throw out completely blank lines (but keep track of line number)
+    --
+    FUNCTION split_clob_to_lines(p_clob CLOB)
+    RETURN t_arr_csv_row_rec
+    PIPELINED
+    ;
+```
+
+Example Usage:
+```sql
+    WITH R AS ( -- convert a CLOB into a set of rows splitting on newline (but protecting CSV protected LF)
+        SELECT *
+        FROM csv_to_table_pkg.split_clob_to_lines(
+-- notice we threw in a blank line in the data
+q'!23, "this contains a comma (,)", 06/30/2021
+47, "this contains a newline (
+)", 01/01/2022
+
+73, and we can have backwacked comma (\,), 12/25/2021
+92, what about backwacked dquote >\"<?, 12/28/2021
+!'
+        )
+    ) SELECT *  -- parse the CSV rows and convert them into result set matching column names and types
+    FROM csv_to_table_pkg.ptf(p_tab => R
+                            , p_table_name  => 'my_table_name'
+                            , p_columns     => 'id, msg, dt', 
+                            , p_date_fmt    => 'MM/DD/YYYY'
+                            )
+    ;
 ```
 
 ## to_zoned_decimal
