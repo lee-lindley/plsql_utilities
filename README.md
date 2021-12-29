@@ -444,6 +444,8 @@ FUNCTION split (
 
 ## csv_to_table
 
+NOTE: Requires Oracle version 18c or higher
+
 Given a set of rows containing CSV strings, or a CLOB containing multiple lines of CSV strings,
 split the records into component column values and return a resultset
 that appears as if it was read from 
