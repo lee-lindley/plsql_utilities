@@ -10,6 +10,7 @@ per the MIT license, others are already public domain. Included are
 * transforming Perl-style Regexp to Oracle RE
 * Splitting of CSV Strings into Fields
 * Parse CSV data into Oracle resultset
+* Create CSV rows from Oracle query
 * Create Zoned Decimal Strings from Numbers
 * A few LOB Utilities
 * A zip archive handler courtesy of Anton Scheffer
@@ -29,10 +30,10 @@ per the MIT license, others are already public domain. Included are
 10. [split](#split)
 11. [csv_to_table](#csv_to_table)
 12. [app_csv_pkg](#app_csv_pkg)
-12. [to_zoned_decimal](#to_zoned_decimal)
-13. [as_zip](#as_zip)
-14. [app_zip](#app_zip)
-15. [app_dbms_sql](#app_dbms_sql)
+13. [to_zoned_decimal](#to_zoned_decimal)
+14. [as_zip](#as_zip)
+15. [app_zip](#app_zip)
+16. [app_dbms_sql](#app_dbms_sql)
 
 ## install.sql
 
@@ -46,7 +47,7 @@ Runs each of these scripts in correct order.
 if you set the compile directive define use_html_email to 'TRUE' in *app_job_log/install_app_job_log.sql*.
 
 Other than those, you can compile these separately or not at all. If you run *install.sql*
-as is, it will install 14 of the 15 components (and sub-components).
+as is, it will install 15 of the 16 components (and sub-components).
 
 The compile for [app_dbms_sql](#app_dbms_sql) is commented out. It is generally compiled from a repository
 that includes *plsql_utilities* as a submodule. It requires [arr_arr_clob_udt](#arr_arr_clob_udt),
