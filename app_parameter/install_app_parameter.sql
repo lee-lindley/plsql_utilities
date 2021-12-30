@@ -34,15 +34,15 @@ DROP TABLE app_parameters;
 prompt ok drop fails for table not exists
 whenever sqlerror exit failure
 prompt calling app_parameters.sql
-@&&subdir/app_parameters.sql
+@@app_parameters.sql
 prompt calling app_parameters.trg
-@&&subdir/app_parameters.trg
+@@app_parameters.trg
 prompt calling get_app_parameters.sql
-@&&subdir/get_app_parameters.sql
+@@get_app_parameters.sql
 prompt calling app_parameter.pks
-@&&subdir/app_parameter.pks
+@@app_parameter.pks
 prompt calling app_parameter.pkb
-@&&subdir/app_parameter.pkb
+@@app_parameter.pkb
 --
 --GRANT EXECUTE ON app_parameter TO ???;
 --

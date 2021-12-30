@@ -24,6 +24,10 @@ define subdir=csv_to_table
 prompt calling &&subdir/install_csv_to_table.sql
 @&&subdir/install_csv_to_table.sql
 --
+define subdir=app_csv_pkg
+prompt calling &&subdir/install_app_csv_pkg.sql
+@&&subdir/install_app_csv_pkg.sql
+--
 define subdir=app_log
 prompt calling &&subdir/install_app_log.sql
 @&&subdir/install_app_log.sql

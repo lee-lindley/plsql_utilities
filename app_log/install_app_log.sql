@@ -24,15 +24,15 @@ prompt ok if drop fails for sequence not exists
 --
 whenever sqlerror exit failure
 prompt calling app_log_app.sql
-@&&subdir/app_log_app.sql
+@@app_log_app.sql
 prompt calling app_log.sql to create tables
-@&&subdir/app_log.sql
+@@app_log.sql
 prompt calling app_log_views.sql
-@&&subdir/app_log_views.sql
+@@app_log_views.sql
 prompt calling app_log_udt.tps
-@&&subdir/app_log_udt.tps
+@@app_log_udt.tps
 prompt calling app_log_udt.tpb
-@&&subdir/app_log_udt.tpb
+@@app_log_udt.tpb
 --
 --ALTER SESSION SET plsql_code_type = INTERPRETED;
 --ALTER SESSION SET plsql_optimize_level=2;

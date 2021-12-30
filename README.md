@@ -28,6 +28,7 @@ per the MIT license, others are already public domain. Included are
 9. [transform_perl_regexp](#transform_perl_regexp)
 10. [split](#split)
 11. [csv_to_table](#csv_to_table)
+12. [app_csv_pkg](#app_csv_pkg)
 12. [to_zoned_decimal](#to_zoned_decimal)
 13. [as_zip](#as_zip)
 14. [app_zip](#app_zip)
@@ -45,7 +46,7 @@ Runs each of these scripts in correct order.
 if you set the compile directive define use_html_email to 'TRUE' in *app_job_log/install_app_job_log.sql*.
 
 Other than those, you can compile these separately or not at all. If you run *install.sql*
-as is, it will install 12 of the 13 components (and sub-components).
+as is, it will install 14 of the 15 components (and sub-components).
 
 The compile for [app_dbms_sql](#app_dbms_sql) is commented out. It is generally compiled from a repository
 that includes *plsql_utilities* as a submodule. It requires [arr_arr_clob_udt](#arr_arr_clob_udt),
@@ -446,11 +447,13 @@ FUNCTION split (
 
 NOTE: Requires Oracle version 18c or higher
 
+This tool converts CSV records into Oracle columns.
+
 Given a set of rows containing CSV strings, or a CLOB containing multiple lines of CSV strings,
 split the records into component column values and return a resultset
 that appears as if it was read from 
 a table in your schema (or a table to which you have SELECT priv).
-We provide a Polymorphic Table Function for your use to achieve this.
+A Polymorphic Table Function is employed to do this which is why it requires 18c or higher.
 
 You can either start with a set of CSV strings as rows, or with a CLOB
 that contains multiple lines, each of which are a CSV record. Note that 
@@ -500,7 +503,10 @@ q'!23, "this contains a comma (,)", 06/30/2021
 92, what about backwacked dquote >\"<?, 12/28/2021
 !'
         )
-    ) SELECT *  -- parse the CSV rows and convert them into result set matching column names and types
+    ) 
+    -- parse the CSV rows and convert them into result set matching column names 
+    -- and types from a table we have SELECT priv on
+    SELECT *  
     FROM csv_to_table_pkg.ptf(p_tab => R
                             , p_table_name  => 'my_table_name'
                             , p_columns     => 'id, msg, dt', 
@@ -508,6 +514,114 @@ q'!23, "this contains a comma (,)", 06/30/2021
                             )
     ;
 ```
+
+## app_csv_pkg
+
+NOTE: Requires Oracle version 18c or higher as it depends on a Polymorphic Table Function. 
+I have another repository named *app_csv_udt*
+that should run on Oracle 10g or better, that has a bit more options, and an Object Oriented
+interface I prefer. I've found many people are less comfortable with the Object Oriented interface.
+This is also a little simpler.
+
+Given a Table or Common Table Expression (CTE) (aka WITH clause), convert the incoming
+data into Comma Separated Value rows. There are also methods for generating a CLOB of
+all of the rows and for writing to a file.
+
+The CSV that is generated complies with the RFC for comma separated values.
+
+```sql
+    --
+    -- All non numeric fields will be surrounded with double quotes. Any double quotes in the
+    -- data will be backwacked to protect them. Newlines in the data are passed through as is
+    -- which might cause issues for some CSV parsers.
+    FUNCTION ptf(
+        p_tab                   TABLE
+        ,p_header_row           VARCHAR2 := 'Y'
+        ,p_separator            VARCHAR2 := ','
+        -- you can set these to NULL if you want the default TO_CHAR conversions
+        ,p_date_format          VARCHAR2 := NULL
+        ,p_interval_format      VARCHAR2 := NULL
+    ) RETURN TABLE
+    PIPELINED ROW POLYMORPHIC USING app_csv_pkg
+    ;
+
+    --
+    -- These two functions and two procedures expect the cursor to return rows containing a single VARCHAR2 column.
+    -- Most often you will use in conjunction with a final WITH clause SELECT * from app_csv_pkg.ptf()
+    --
+    FUNCTION get_clob(
+        p_src       SYS_REFCURSOR
+        ,p_lf_only  VARCHAR2 := 'Y'
+    ) RETURN CLOB
+    ;
+    FUNCTION get_clob(
+        p_sql       CLOB
+        ,p_lf_only  VARCHAR2 := 'Y'
+    ) RETURN CLOB
+    ;
+    PROCEDURE write_file(
+         p_dir          VARCHAR2
+        ,p_file_name    VARCHAR2
+        ,p_src          SYS_REFCURSOR
+    );
+    PROCEDURE write_file(
+         p_dir          VARCHAR2
+        ,p_file_name    VARCHAR2
+        ,p_sql          CLOB
+    );
+
+```
+Example 1:
+```sql
+WITH R AS (
+    SELECT first_name||' '||last_name AS "Employee Name", hire_date AS "Hire Date", employee_id AS "Employee ID"
+    FROM hr.employees
+    ORDER BY last_name, first_name
+) SELECT *
+FROM app_csv_pkg.ptf(R, p_date_format => 'YYYYMMDD')
+WHERE rownum <= 10
+;
+```
+
+Output (notice how the header row counts as one of the 10 rows!):
+
+    "Employee Name","Hire Date","Employee ID"
+    "Ellen Abel","20040511",174
+    "Sundar Ande","20080324",166
+    "Mozhe Atkinson","20051030",130
+    "David Austin","20050625",105
+    "Hermann Baer","20020607",204
+    "Shelli Baida","20051224",116
+    "Amit Banda","20080421",167
+    "Elizabeth Bates","20070324",172
+    "Sarah Bell","20040204",192
+
+Example 2:
+
+```sql
+SELECT app_csv_pkg.get_clob(q'[
+WITH R AS (
+    SELECT first_name||' '||last_name AS "Employee Name", hire_date AS "Hire Date", employee_id AS "Employee ID"
+    FROM hr.employees
+    ORDER BY last_name, first_name
+) SELECT *
+FROM app_csv_pkg.ptf(R, p_separator => '|', p_header_row => 'N', p_date_format => 'MM/DD/YYYY')
+WHERE rownum <= 10]'
+    ) FROM dual;
+```
+
+Output is a single CLOB value that you could attach to an email or insert into a table: 
+
+    "Ellen Abel"|"05/11/2004"|174
+    "Sundar Ande"|"03/24/2008"|166
+    "Mozhe Atkinson"|"10/30/2005"|130
+    "David Austin"|"06/25/2005"|105
+    "Hermann Baer"|"06/07/2002"|204
+    "Shelli Baida"|"12/24/2005"|116
+    "Amit Banda"|"04/21/2008"|167
+    "Elizabeth Bates"|"03/24/2007"|172
+    "Sarah Bell"|"02/04/2004"|192
+    "David Bernstein"|"03/24/2005"|151
 
 ## to_zoned_decimal
 

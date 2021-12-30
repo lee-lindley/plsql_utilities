@@ -6,9 +6,9 @@ set define on
 define use_html_email="FALSE"
 ALTER SESSION SET PLSQL_CCFLAGS='use_html_email:&&use_html_email.';
 prompt calling app_job_log_udt.tps
-@&&subdir/app_job_log_udt.tps
+@@app_job_log_udt.tps
 prompt calling app_job_log_udt.tpb
-@&&subdir/app_job_log_udt.tpb
+@@app_job_log_udt.tpb
 ALTER SESSION SET PLSQL_CCFLAGS='';
 --
 --ALTER SESSION SET plsql_code_type = INTERPRETED;
