@@ -7,7 +7,7 @@ per the MIT license, others are already public domain. Included are
 
 * Application Logging
 * Application Parameter Facility
-* transforming Perl-style Regexp to Oracle RE
+* Transforming Perl-style Regexp to Oracle RE
 * Splitting of CSV Strings into Fields
 * Parse CSV data into Oracle resultset
 * Create CSV rows from Oracle query
@@ -15,7 +15,7 @@ per the MIT license, others are already public domain. Included are
 * A few LOB Utilities
 * A zip archive handler courtesy of Anton Scheffer
 * An Object wrapper for *as_zip*
-* A wrapper for DBMS_SQL that handles bulk fetches
+* A wrapper for DBMS_SQL that handles bulk fetches (likely superceded by Polymorphic Table Functions)
 
 # Content
 1. [install.sql](#installsql)
@@ -547,8 +547,12 @@ The CSV that is generated complies with the RFC for comma separated values.
     ;
 
     --
-    -- These two functions and two procedures expect the cursor to return rows containing a single VARCHAR2 column.
-    -- Most often you will use in conjunction with a final WITH clause SELECT * from app_csv_pkg.ptf()
+    -- These two functions and two procedures expect the cursor to return rows containing a 
+    -- single VARCHAR2 column.
+    -- Most often you will use in conjunction with a final WITH clause like
+    -- WITH my_with_clause AS (
+    --     ...
+    -- ) SELECT * from app_csv_pkg.ptf(my_with_clause)
     --
     FUNCTION get_clob(
         p_src       SYS_REFCURSOR
@@ -584,7 +588,7 @@ WHERE rownum <= 10
 ;
 ```
 
-Output (notice how the header row counts as one of the 10 rows!):
+Output (notice how the header row counts as one of the 10 rows! It is just a data record in the resultset.):
 
     "Employee Name","Hire Date","Employee ID"
     "Ellen Abel","20040511",174
