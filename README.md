@@ -543,7 +543,7 @@ The CSV that is generated complies with the RFC for comma separated values.
         ,p_date_format          VARCHAR2 := NULL
         ,p_interval_format      VARCHAR2 := NULL
     ) RETURN TABLE
-    PIPELINED ROW POLYMORPHIC USING app_csv_pkg
+    PIPELINED TABLE POLYMORPHIC USING app_csv_pkg
     ;
 
     --
@@ -579,11 +579,13 @@ The CSV that is generated complies with the RFC for comma separated values.
 Example 1:
 ```sql
 WITH R AS (
-    SELECT first_name||' '||last_name AS "Employee Name", hire_date AS "Hire Date", employee_id AS "Employee ID"
+    SELECT last_name||', '||first_name AS "Employee Name", hire_date AS "Hire Date", employee_id AS "Employee ID"
     FROM hr.employees
-    ORDER BY last_name, first_name
+    --ORDER BY last_name, first_name
 ) SELECT *
-FROM app_csv_pkg.ptf(R, p_date_format => 'YYYYMMDD')
+FROM app_csv_pkg.ptf(R ORDER BY ("Employee Name", "Hire Date")
+                        , p_date_format => 'YYYYMMDD'
+                    )
 WHERE rownum <= 10
 ;
 ```
@@ -591,42 +593,45 @@ WHERE rownum <= 10
 Output (notice how the header row counts as one of the 10 rows! It is just a data record in the resultset.):
 
     "Employee Name","Hire Date","Employee ID"
-    "Ellen Abel","20040511",174
-    "Sundar Ande","20080324",166
-    "Mozhe Atkinson","20051030",130
-    "David Austin","20050625",105
-    "Hermann Baer","20020607",204
-    "Shelli Baida","20051224",116
-    "Amit Banda","20080421",167
-    "Elizabeth Bates","20070324",172
-    "Sarah Bell","20040204",192
+    "Abel, Ellen","20040511",174
+    "Ande, Sundar","20080324",166
+    "Atkinson, Mozhe","20051030",130
+    "Austin, David","20050625",105
+    "Baer, Hermann","20020607",204
+    "Baida, Shelli","20051224",116
+    "Banda, Amit","20080421",167
+    "Bates, Elizabeth","20070324",172
+    "Bell, Sarah","20040204",192
 
 Example 2:
 
 ```sql
 SELECT app_csv_pkg.get_clob(q'[
-WITH R AS (
-    SELECT first_name||' '||last_name AS "Employee Name", hire_date AS "Hire Date", employee_id AS "Employee ID"
-    FROM hr.employees
-    ORDER BY last_name, first_name
-) SELECT *
-FROM app_csv_pkg.ptf(R, p_separator => '|', p_header_row => 'N', p_date_format => 'MM/DD/YYYY')
-WHERE rownum <= 10]'
+    WITH R AS (
+        SELECT last_name||', '||first_name AS "Employee Name", hire_date AS "Hire Date", employee_id AS "Employee ID"
+        FROM hr.employees
+        --ORDER BY last_name, first_name
+    ) SELECT *
+    FROM app_csv_pkg.ptf(R ORDER BY ("Employee Name", "Hire Date")
+                            , p_separator => '|', p_header_row => 'N', p_date_format => 'MM/DD/YYYY'
+                        )
+    WHERE rownum <= 10
+]'
     ) FROM dual;
 ```
 
 Output is a single CLOB value that you could attach to an email or insert into a table: 
 
-    "Ellen Abel"|"05/11/2004"|174
-    "Sundar Ande"|"03/24/2008"|166
-    "Mozhe Atkinson"|"10/30/2005"|130
-    "David Austin"|"06/25/2005"|105
-    "Hermann Baer"|"06/07/2002"|204
-    "Shelli Baida"|"12/24/2005"|116
-    "Amit Banda"|"04/21/2008"|167
-    "Elizabeth Bates"|"03/24/2007"|172
-    "Sarah Bell"|"02/04/2004"|192
-    "David Bernstein"|"03/24/2005"|151
+    "Abel, Ellen"|"05/11/2004"|174
+    "Ande, Sundar"|"03/24/2008"|166
+    "Atkinson, Mozhe"|"10/30/2005"|130
+    "Austin, David"|"06/25/2005"|105
+    "Baer, Hermann"|"06/07/2002"|204
+    "Baida, Shelli"|"12/24/2005"|116
+    "Banda, Amit"|"04/21/2008"|167
+    "Bates, Elizabeth"|"03/24/2007"|172
+    "Bell, Sarah"|"02/04/2004"|192
+    "Bernstein, David"|"03/24/2005"|151
 
 ## to_zoned_decimal
 

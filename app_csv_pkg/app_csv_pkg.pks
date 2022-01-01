@@ -36,8 +36,10 @@ SOFTWARE.
         -- you can set these to NULL if you want the default TO_CHAR conversions
         ,p_date_format          VARCHAR2 := NULL
         ,p_interval_format      VARCHAR2 := NULL
-    ) RETURN TABLE
-    PIPELINED ROW POLYMORPHIC USING app_csv_pkg
+    ) RETURN TABLE PIPELINED 
+        TABLE -- so can ORDER the input
+        --ROW 
+        POLYMORPHIC USING app_csv_pkg
     ;
 
     --
@@ -68,7 +70,7 @@ SOFTWARE.
     -- the describe and fetch procedures are used exclusively by the PTF mechanism. You cannot
     -- call them directly.
     FUNCTION describe(
-        p_tab IN OUT    DBMS_TF.TABLE_T
+        p_tab IN OUT            DBMS_TF.TABLE_T
         ,p_header_row           VARCHAR2 := 'Y'
         ,p_separator            VARCHAR2 := ','
         -- you can set these to NULL if you want the default TO_CHAR conversions

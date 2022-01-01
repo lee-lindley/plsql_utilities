@@ -122,18 +122,19 @@ SOFTWARE.
     AS
         v_new_cols  DBMS_TF.columns_new_t;
     BEGIN
-        -- stop all input columns from being in the output and create new varchar2 columns that will be in the output
+        -- stop all input columns from being in the output
         FOR i IN 1..p_tab.column.COUNT()
         LOOP
             p_tab.column(i).pass_through := FALSE;
             p_tab.column(i).for_read := TRUE;
         END LOOP;
+        -- create a single new output column for the CSV row string
         v_new_cols(1) := DBMS_TF.column_metadata_t(
                                     name    => 'CSV_ROW'
                                     ,type   => DBMS_TF.type_varchar2
                                 );
 
-        -- we will use row replication to put a header out on the first row
+        -- we will use row replication to put a header out on the first row if desired
         RETURN DBMS_TF.describe_t(new_columns => v_new_cols, row_replication => p_header_row IN ('Y','y'));
     END describe
     ;
@@ -168,25 +169,30 @@ SOFTWARE.
             ,p_row_index    BINARY_INTEGER
         ) RETURN VARCHAR2
         IS
+            v_s VARCHAR2(4000);
         BEGIN
-            RETURN CASE WHEN v_conv_fmts.EXISTS(p_col_index) THEN
+            v_s := CASE WHEN v_conv_fmts.EXISTS(p_col_index) THEN
                       '"'
-                    ||REPLACE(
-                        CASE v_conv_fmts(p_col_index).t
-                            WHEN DBMS_TF.type_date THEN 
-                                TO_CHAR(v_rowset(p_col_index).tab_date(p_row_index), v_conv_fmts(p_col_index).f)
-                            WHEN DBMS_TF.type_interval_ym THEN 
-                                TO_CHAR(v_rowset(p_col_index).tab_interval_ym(p_row_index), v_conv_fmts(p_col_index).f)
-                            WHEN DBMS_TF.type_interval_ds THEN 
-                                TO_CHAR(v_rowset(p_col_index).tab_interval_ds(p_row_index), v_conv_fmts(p_col_index).f)
-                        END
-                        , '"', '\\"'
-                      ) -- backwack the dquotes if any
-                    ||'"'
-                ELSE
-                    DBMS_TF.col_to_char(v_rowset(p_col_index), p_row_index)
-            END;
-        END;
+                        ||REPLACE(
+                            CASE v_conv_fmts(p_col_index).t
+                                WHEN DBMS_TF.type_date THEN 
+                                    TO_CHAR(v_rowset(p_col_index).tab_date(p_row_index), v_conv_fmts(p_col_index).f)
+                                WHEN DBMS_TF.type_interval_ym THEN 
+                                    TO_CHAR(v_rowset(p_col_index).tab_interval_ym(p_row_index), v_conv_fmts(p_col_index).f)
+                                WHEN DBMS_TF.type_interval_ds THEN 
+                                    TO_CHAR(v_rowset(p_col_index).tab_interval_ds(p_row_index), v_conv_fmts(p_col_index).f)
+                            END
+                            , '"', '\\"'
+                        ) -- backwack the dquotes if any
+                        ||'"'
+                    ELSE
+                        DBMS_TF.col_to_char(v_rowset(p_col_index), p_row_index)
+                END;
+            IF SUBSTR(v_s,1,1) != '"' AND INSTR(v_s,p_separator) != 0 THEN
+                v_s := '"'||v_s||'"';
+            END IF;
+            RETURN v_s;
+        END; -- apply_cust_conv
     BEGIN
 
         IF p_header_row IN ('Y','y') THEN
