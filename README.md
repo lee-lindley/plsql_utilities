@@ -490,7 +490,7 @@ with RFC4180 (See https://www.loc.gov/preservation/digital/formats/fdd/fdd000323
     ;
 ```
 
-Given that you can import CSV files to the database in numerous ways including *sqlldr*,
+Given that you can import CSV files to the database in numerous ways including sqlldr,
 external tables, Toad, sqlCL, sqlplus and more, the use case for this is limited. If you have 
 a clob or a set of CSV row data coming to you in a SQL or PL/SQL program and need to parse
 it, then it may be useful. Note that you can parse it into arrays of VARCHAR2 more easily
