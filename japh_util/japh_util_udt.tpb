@@ -233,6 +233,8 @@ CREATE OR REPLACE TYPE BODY japh_util_udt AS
 	        v_cnt       BINARY_INTEGER;
 	        v_arr       arr_varchar2_udt := arr_varchar2_udt();
 	
+-- this is what you have to do in Oracle when you are NOT using transform_perl_regexp!!!
+
 	        -- we are going to match multiple times. After each match the position 
 	        -- will be after the last separator.
 	        v_regexp    VARCHAR2(128) :=

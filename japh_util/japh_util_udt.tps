@@ -1,6 +1,7 @@
 CREATE OR REPLACE TYPE japh_util_udt AUTHID CURRENT_USER AS OBJECT (
     arr     arr_varchar2_udt
 --select japh_util_udt(p_arr => arr_varchar2_udt('one', 'two', 'three', 'four')).sort().join(', ') from dual;
+--select japh_util_udt('one, two, three, four').sort().join(', ') from dual;
     ,CONSTRUCTOR FUNCTION japh_util_udt(
         p_arr    arr_varchar2_udt DEFAULT NULL
     ) RETURN SELF AS RESULT

@@ -13,12 +13,10 @@ prompt arr_arr_varchar2_udt.tps
 prompt arr_integer_udt.tps
 @app_types/arr_integer_udt.tps
 --
-prompt transform_perl_regexp.sql
-@transform_perl_regexp.sql
--- split requires arr_varchar2_udt or you can edit it to use your own version
-prompt split.sql
-@split.sql
---
+-- japh_util_udt requires arr_varchar2_udt or you can edit it and use your own version
+define subdir=japh_util
+prompt calling &&subdir/install_japh_util.sql
+@&&subdir/install_japh_util.sql
 -- csv_to_table_pkg requires arr_varchar2_udt or you can edit it to use your own version
 define subdir=csv_to_table
 prompt calling &&subdir/install_csv_to_table.sql
@@ -51,7 +49,7 @@ define subdir=as_zip
 prompt calling &&subdir/install_as_zip.sql
 @&&subdir/install_as_zip.sql
 --
--- requires as_zip, split, app_lob and arr_varchar2_udt(or equivalent you substitute in the source files)
+-- requires as_zip, japh_util_udt (for split_csv), app_lob and arr_varchar2_udt(or equivalent you substitute in the source files)
 define subdir=app_zip
 prompt calling &&subdir/install_app_zip.sql
 @&&subdir/install_app_zip.sql

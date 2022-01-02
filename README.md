@@ -7,8 +7,10 @@ per the MIT license, others are already public domain. Included are
 
 * Application Logging
 * Application Parameter Facility
-* Transforming Perl-style Regexp to Oracle RE
-* Splitting of CSV Strings into Fields
+* Perlish Utility User Defined Type
+    * Transforming Perl-style Regexp to Oracle RE
+    * Splitting of CSV Strings into Fields
+    * methods that mimic the Perl *map*, *join* and *sort* methods in a chain of calls
 * Parse CSV data into Oracle resultset
 * Create CSV rows from Oracle query
 * Create Zoned Decimal Strings from Numbers
@@ -26,22 +28,21 @@ per the MIT license, others are already public domain. Included are
 6. [arr_arr_clob_udt](#arr_arr_clob_udt)
 7. [arr_varchar2_udt](#arr_varchar2_udt)
 8. [arr_integer_udt](#arr_integer_udt)
-9. [transform_perl_regexp](#transform_perl_regexp)
-10. [split](#split)
-11. [csv_to_table](#csv_to_table)
-12. [app_csv_pkg](#app_csv_pkg)
-13. [to_zoned_decimal](#to_zoned_decimal)
-14. [as_zip](#as_zip)
-15. [app_zip](#app_zip)
-16. [app_dbms_sql](#app_dbms_sql)
+9. [japh_util_udt](#japh_util_udt)
+10. [csv_to_table](#csv_to_table)
+11. [app_csv_pkg](#app_csv_pkg)
+12. [to_zoned_decimal](#to_zoned_decimal)
+13. [as_zip](#as_zip)
+14. [app_zip](#app_zip)
+15. [app_dbms_sql](#app_dbms_sql)
 
 ## install.sql
 
 Runs each of these scripts in correct order.
 
-*split* and *csv_to_table* depend upon [arr_varchar2_udt](#arr_varchar2_udt). 
+*japh_util_udt* and *csv_to_table* depend upon [arr_varchar2_udt](#arr_varchar2_udt). 
 
-*app_zip* depends on [as_zip](#as_zip), [app_lob](#app_lob), [arr_varchar2_udt](#arr_varchar2_udt), and [split](#split).
+*app_zip* depends on [as_zip](#as_zip), [app_lob](#app_lob), [arr_varchar2_udt](#arr_varchar2_udt), and [japh__util_udt](#japh__util_udt) (for split_csv).
 
 *app_job_log* depends on [app_log](#app_log), and optionally on [html_email](https://github.com/lee-lindley/html_email)
 if you set the compile directive define use_html_email to 'TRUE' in *app_job_log/install_app_job_log.sql*.
@@ -361,7 +362,142 @@ User Defined Type Table of INTEGER required for some of these utilities. If you 
 have one of these, by all means use it instead. Replace all references to *arr_integer_udt*
 in the other files you deploy.
 
-## transform_perl_regexp
+## japh_util_udt
+
+The Just Another Perl Hacker utilities (JAPH) will warm the hearts of those who are dissapointed
+when they have to program in PL/SQL. It isn't Perl, but it makes some Perlish things a bit
+easier in PL/SQL.  
+
+The user defined type holds an *arr_varchar2_udt* member which you will use when employing the following member methods;
+
+- map
+- join
+- sort
+- get
+
+It has static method *split_csv* (returns an *arr_varchar2_udt*) that 
+formerly lived as a standalone function in the plsql_utilities library as *split*.
+It also has an static method named *transform_perl_regexp* that has nothing to do with arrays, but is Perlish.
+
+Most of the member methods are chainable which is handy when you are doing a series of operations.
+
+Example 1:
+```sql
+    select japh_util_udt(p_arr => arr_varchar2_udt('one', 'two', 'three', 'four')).sort().join(', ') from dual;
+    -- Or using split_csv version of the constructor
+    select japh_util_udt('one, two, three, four').sort().join(', ') from dual;
+```
+Output:
+
+    "four, one, three, two"
+
+Example 2:
+```sql
+    select japh_util_udt('id, type').map('t.$_ = q.$_').join(' AND ') from dual;
+```
+Output:
+
+    "t.id = q.id AND t.type = q.type"
+
+Example 3:
+```sql
+    select japh_util_udt('id, type').map('  t.$_ = q.$_').join(',
+    ') from dual;
+```
+
+    "  t.id = q.id,
+        t.type = q.type"
+
+Notice that there are static versions of all of the methods. You do not have to create an
+object or use the object method syntax. You can use each of them independently as if they
+were in a package named *japh_util_udt*.
+
+```sql
+CREATE OR REPLACE TYPE japh_util_udt AUTHID CURRENT_USER AS OBJECT (
+    arr     arr_varchar2_udt
+    ,CONSTRUCTOR FUNCTION japh_util_udt(
+        p_arr    arr_varchar2_udt DEFAULT NULL
+    ) RETURN SELF AS RESULT
+    ,CONSTRUCTOR FUNCTION japh_util_udt(
+        p_csv   VARCHAR2
+    ) RETURN SELF AS RESULT
+    -- all are callable in a chain if they return japh_util_udt; otherwise must be end of chain
+    ,MEMBER FUNCTION get RETURN arr_varchar2_udt
+    ,STATIC FUNCTION map(
+        p_expr          VARCHAR2 -- not an anonymous block
+        ,p_arr          arr_varchar2_udt
+        ,p_             VARCHAR2 DEFAULT '$_' -- the string that is replaced in p_expr with array element
+        -- example: v_arr := v_japh_util_udt(v_arr).map('t.$_ = q.$_');
+    ) RETURN arr_varchar2_udt
+    ,MEMBER FUNCTION map(
+        p_expr          VARCHAR2 -- not an anonymous block
+        ,p_             VARCHAR2 DEFAULT '$_' -- the string that is replaced in p_expr with array element
+        -- example: v_arr := v_japh_util_udt(v_arr).map('t.$_ = q.$_');
+    ) RETURN japh_util_udt
+    -- join the elements into a string with a separator between them
+    ,STATIC FUNCTION join(
+        p_arr           arr_varchar2_udt
+        ,p_separator    VARCHAR2 DEFAULT ','
+    ) RETURN VARCHAR2
+    ,MEMBER FUNCTION join(
+        p_separator     VARCHAR2 DEFAULT ','
+    ) RETURN VARCHAR2
+    -- yes these are ridiculous, but I want it
+    ,STATIC FUNCTION sort(
+        p_arr           arr_varchar2_udt
+        ,p_descending   VARCHAR2 DEFAULT 'N'
+    ) RETURN arr_varchar2_udt
+    ,MEMBER FUNCTION sort(
+        p_descending    VARCHAR2 DEFAULT 'N'
+    ) RETURN japh_util_udt
+    --
+    -- these are really standalone but this was a good place to stash them
+    --
+    ,STATIC FUNCTION transform_perl_regexp(p_re VARCHAR2)
+	RETURN VARCHAR2 DETERMINISTIC
+
+    ,STATIC FUNCTION split_csv (
+	     p_s            VARCHAR2
+	    ,p_separator    VARCHAR2    DEFAULT ','
+	    ,p_keep_nulls   VARCHAR2    DEFAULT 'N'
+	    ,p_strip_dquote VARCHAR2    DEFAULT 'Y' -- also unquotes \" and "" pairs within the field to just "
+	) RETURN arr_varchar2_udt DETERMINISTIC
+);
+```
+### CONSTRUCTOR japh_util_udt
+
+You can call it with no argument, a string that will be split on commas, or an *arr_varchar2_udt* collection.
+For reasons I have not figured out, if you call it with the *arr_varchar2_udt* collection
+you must specify the named argument with the 
+    p_arr =>
+syntax rather than simply positional. See the Example 1 above.
+
+### join
+
+The array elements are joined together with a comma separator (or value you provide) returning a single string.
+It works pretty much the same as Perl *join*.
+
+### sort
+
+I almost didn't provide this but the fact that you have to reach out to the SQL engine
+to do a sort in PL/SQL is sort of annoying. It sorts the incoming array and returns a new
+*japh_util_udt* argument with the sorted results.
+
+### map
+
+The array elements are transformed by replacing the token '$\_'
+with the array element as many times
+as it appears in the *p_expr* string. Note that this is just an expression version of the Perl *map*
+functionality. We are not doing an anonymous block or anything really fancy. We could, but I do
+not think it would be a good idea. Keep your expectations low.
+
+It returns a new *japh_util_udt* object with the transformed elements.
+
+### get
+
+Simply returns the collection from the object so you don't put your grubby paws on it directly.
+
+### transform_perl_regexp
 
 A function to treat the input value as a Perl-style regular expression with
 embedded comments and whitespace that must be stripped as if it were used
@@ -385,7 +521,7 @@ backwack is protected. It isn't clever enough to figure out '\\\\\n'. Tough. Wri
 This means you can write a regular expression that looks like this:
 
 ```sql
-    v_re := transform_perl_regexp('
+    v_re := japh_util_udt.transform_perl_regexp('
 (                               -- capture in \1
   (                             -- going to group 0 or more of these things
     [^"\n]+                     -- any number of chars that are not dquote or newline
@@ -412,7 +548,7 @@ and have the RE that you hand to the Oracle procedure appear as
     ]+|"(""|\\"|[^"])*")*)($|
     )
 
-## split
+### split_csv
 
 A function to split a comma separated value string that follows RFC4180 
 into an array of strings.
@@ -433,16 +569,6 @@ See https://www.loc.gov/preservation/digital/formats/fdd/fdd000323.shtml
 The problem turned out to be much more complex than I thought when starting the work.
 If you like playing with regular expressions, take a gander and tell me if you can 
 do better. (really! I like to learn.)
-
-```sql
-FUNCTION split (
-    p_s             VARCHAR2
-    ,p_separator    VARCHAR2    DEFAULT ','
-    ,p_keep_nulls   VARCHAR2    DEFAULT 'N'
-    ,p_strip_dquote VARCHAR2    DEFAULT 'Y' -- also "unquotes" \" and "" pairs within a double quotes string to "
-) RETURN arr_varchar2_udt DETERMINISTIC
--- when p_s IS NULL returns initialized collection with COUNT=0
-```
 
 ## csv_to_table
 
