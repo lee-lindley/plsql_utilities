@@ -464,8 +464,8 @@ with RFC4180 (See https://www.loc.gov/preservation/digital/formats/fdd/fdd000323
 ```sql
     FUNCTION ptf(
         p_tab           TABLE
+        ,p_columns      VARCHAR2 -- csv list. If the column name is in double quotes, we keep case; otherwise UPPER applied
         ,p_table_name   VARCHAR2
-        ,p_columns      VARCHAR2 -- csv list
         ,p_date_fmt     VARCHAR2 DEFAULT NULL -- uses nls_date_format if null
         ,p_separator    VARCHAR2 DEFAULT ','
     ) RETURN TABLE
@@ -490,8 +490,18 @@ with RFC4180 (See https://www.loc.gov/preservation/digital/formats/fdd/fdd000323
     ;
 ```
 
-Example Usage:
+Given that you can import CSV files to the database in numerous ways including *sqlldr*,
+external tables, Toad, sqlCL, sqlplus and more, the use case for this is limited. If you have 
+a clob or a set of CSV row data coming to you in a SQL or PL/SQL program and need to parse
+it, then it may be useful. Note that you can parse it into arrays of VARCHAR2 more easily
+than what this provides. The conversion to Oracle data types and presentation of the resuts
+in a query may be useful. I confess that my original use case for deploying table data
+during Continuous Improvement implementations was a bust. The complexity exeeds the benefit.
+
+Example 1:
 ```sql
+create TABLE my_table_name(id number, msg VARCHAR2(1024), dt DATE);
+
     WITH R AS ( -- convert a CLOB into a set of rows splitting on newline (but protecting CSV protected LF)
         SELECT *
         FROM csv_to_table_pkg.split_clob_to_lines(
@@ -514,7 +524,70 @@ q'!23, "this contains a comma (,)", 06/30/2021
                             , p_date_fmt    => 'MM/DD/YYYY'
                             )
     ;
+
+drop table my_table_name;
 ```
+
+As an alternative if you can get the CSV rows from another source, you do not need split_clob_to_lines. 
+For example you could have CSV values in VARCHAR2 column in a configuration table. Here we will demonstrate
+with a simple UNION ALL group of records.
+
+```sql
+    WITH R AS ( 
+                  SELECT '23, "this contains a comma (,)", 06/30/2021' FROM DUAL
+        UNION ALL SELECT '47, "this contains a newline (
+)", 01/01/2022' FROM DUAL
+        UNION ALL SELECT '73, and we can have backwacked comma (\,),' FROM DUAL -- will have NULL date
+        UNION ALL SELECT '92, what about backwacked dquote >\"<?, 12/28/2021' FROM DUAL
+    ) SELECT *  -- parse the CSV rows and convert them into result set matching column names and types
+    FROM csv_to_table_pkg.ptf(p_tab => R
+                            , p_table_name  => 'my_table_name'
+                            , p_columns     => 'id, msg, dt', 
+                            , p_date_fmt    => 'MM/DD/YYYY'
+                            )
+    ;
+```
+
+Example 2 with mixed case column names:
+```sql
+create table ztest_ptf_tbl(
+    id  NUMBER
+    ,"String Id"    VARCHAR2(128)
+    ,bd             BINARY_DOUBLE
+    ,timestamp      TIMESTAMP
+    ,"My Date"      DATE
+);
+--INSERT INTO ztest_ptf_tbl VALUES(1, 'One', 1.1, systimestamp, sysdate);
+--INSERT INTO ztest_ptf_tbl VALUES(2, 'Two', 2.2, systimestamp, sysdate);
+--INSERT INTO ztest_ptf_tbl VALUES(3, 'Three', 3.3, systimestamp, sysdate);
+--COMMIT;
+
+ALTER SESSION SET NLS_DATE_FORMAT='MM/DD/YYYY';
+WITH R AS (
+    SELECT *
+    FROM csv_to_table_pkg.split_clob_to_lines(
+q'!
+1,"One",1.1,01/02/2022 08.44.12.370423000 AM,01/02/2022
+2,"Two",2.2,01/02/2022 08.44.12.477616000 AM,01/02/2022
+3,"Three",3.3,01/02/2022 08.44.12.483012000 AM,01/02/2022
+!'
+    )
+) SELECT *
+FROM csv_to_table_pkg.ptf(p_tab => R
+                            , p_columns => 'Id, "String Id", bd, TimeStamp, "My Date"'
+--"ID","String Id","BD","TIMESTAMP","My Date"
+                            , p_table_name => 'ztest_ptf_tbl'
+                        )
+;
+DROP TABLE ztest_ptf_tbl;
+```
+
+Result exported from sqldeveloper as CSV:
+
+    "ID","String Id","BD","TIMESTAMP","My Date"
+    1,"One",1.1,01/02/2022 08.44.12.370423000 AM,01/02/2022
+    2,"Two",2.2,01/02/2022 08.44.12.477616000 AM,01/02/2022
+    3,"Three",3.3,01/02/2022 08.44.12.483012000 AM,01/02/2022
 
 ## app_csv_pkg
 

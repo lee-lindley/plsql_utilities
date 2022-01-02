@@ -111,8 +111,8 @@ SOFTWARE.
     */
     FUNCTION describe(
         p_tab IN OUT    DBMS_TF.TABLE_T
-        ,p_table_name   VARCHAR2
         ,p_columns      VARCHAR2 -- csv list
+        ,p_table_name   VARCHAR2
         ,p_date_fmt     VARCHAR2 DEFAULT NULL -- uses nls_date_format if null
         ,p_separator    VARCHAR2 DEFAULT ','
     ) RETURN DBMS_TF.DESCRIBE_T
@@ -144,12 +144,17 @@ SOFTWARE.
             END IF;
         END IF;
 
-        v_col_names := split(UPPER(p_columns), p_separator => p_separator);
+        v_col_names := split(p_columns, p_separator => p_separator, p_strip_dquote => 'N');
         -- we need a hash to get from the column name to the index for both input csv order and output field order
         -- We could depend on the order Oracle delivers it from the TABLE(v_col_names) construct and casual
         -- testing says it would work, but it is not defined to do so and could break in a future release. Unlikely, but...
         FOR i IN 1..v_col_names.COUNT
         LOOP
+            IF SUBSTR(v_col_names(i),1,1) = '"' THEN
+                v_col_names(i) := REPLACE(v_col_names(i), '"'); -- strip dquotes and keep case
+            ELSE
+                v_col_names(i) := UPPER(v_col_names(i));
+            END IF;
             v_col_order(v_col_names(i)) := i;
         END LOOP;
 
@@ -176,7 +181,7 @@ SOFTWARE.
             END IF;
             -- we create these in the order they came out of the query, but they must be in the right location in the array
             v_new_cols(v_col_order(r.column_name)) := DBMS_TF.column_metadata_t(
-                                        name    => r.column_name
+                                        name    => '"'||r.column_name||'"' -- protect case
                                         ,type   => CASE r.data_type
                                                     WHEN 'TIMESTAMP'        THEN DBMS_TF.type_timestamp
                                                     WHEN 'BINARY_DOUBLE'    THEN DBMS_TF.type_binary_double
@@ -196,8 +201,8 @@ SOFTWARE.
     ;
 
     PROCEDURE fetch_rows(
-         p_table_name   VARCHAR2
-        ,p_columns      VARCHAR2 -- csv list
+         p_columns      VARCHAR2 -- csv list. not used here
+        ,p_table_name   VARCHAR2
         ,p_date_fmt     VARCHAR2 DEFAULT NULL -- uses nls_date_format if null
         ,p_separator    VARCHAR2 DEFAULT ','
     ) AS
