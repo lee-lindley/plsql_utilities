@@ -377,7 +377,7 @@ The user defined type holds an *arr_varchar2_udt* member which you will use when
 
 It has static method *split_csv* (returns an *arr_varchar2_udt*) that 
 formerly lived as a standalone function in the plsql_utilities library as *split*.
-It also has an static method named *transform_perl_regexp* that has nothing to do with arrays, but is Perlish.
+It also has a static method named *transform_perl_regexp* that has nothing to do with arrays, but is Perlish.
 
 Most of the member methods are chainable which is handy when you are doing a series of operations.
 
