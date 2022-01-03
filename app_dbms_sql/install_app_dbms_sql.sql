@@ -1,7 +1,7 @@
 whenever sqlerror continue
 prompt OK for these to fail for type not exists
-DROP TYPE app_dbms_sql_str_udt;
-DROP TYPE app_dbms_sql_udt;
+DROP TYPE app_dbms_sql_str_udt FORCE;
+DROP TYPE app_dbms_sql_udt FORCE;
 prompt OK if failed for type not exists
 --whenever sqlerror exit failure
 --
