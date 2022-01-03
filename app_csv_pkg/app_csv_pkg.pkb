@@ -65,9 +65,16 @@ SOFTWARE.
         ,p_lf_only          VARCHAR2 := 'Y'
     )
     IS
-        v_src   SYS_REFCURSOR;
+        v_src       SYS_REFCURSOR;
+        ORA62558    EXCEPTION;
+        pragma EXCEPTION_INIT(ORA62558, -62558);
     BEGIN
-        OPEN v_src FOR p_sql;
+        BEGIN
+            OPEN v_src FOR p_sql;
+        EXCEPTION WHEN ORA62558 THEN
+            raise_application_error(-20001, 'sqlcode: '||sqlcode||' One or more columns in the query not supported. If coming from a view that calculates the date, do CAST(val AS DATE) in the view or your sql to fix it.');
+        END;
+
         get_clob(p_src => v_src, p_clob => p_clob, p_rec_count => p_rec_count, p_lf_only => p_lf_only);
         BEGIN
             CLOSE v_src;
@@ -142,8 +149,15 @@ SOFTWARE.
         ,p_rec_cnt  OUT NUMBER -- includes header row
     ) IS
         v_src           SYS_REFCURSOR;
+        ORA62558        EXCEPTION;
+        pragma EXCEPTION_INIT(ORA62558, -62558);
     BEGIN
-        OPEN v_src FOR p_sql;
+        BEGIN
+            OPEN v_src FOR p_sql;
+        EXCEPTION WHEN ORA62558 THEN
+            raise_application_error(-20001, 'sqlcode: '||sqlcode||' One or more columns in the query not supported. If coming from a view that calculates the date, do CAST(val AS DATE) in the view or your sql to fix it.');
+        END;
+
         write_file(
             p_dir           => p_dir
             ,p_file_name    => p_file_name
