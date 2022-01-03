@@ -25,6 +25,17 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
+/*
+
+NOTE:
+
+There is a substantial limitation of Polymorphic Table Functions that may make
+https://github.com/lee-lindley/app_csv a better choice. Only SCALAR
+values are allowed for columns, which sounds innocuous enough, until you understand that
+SYSDATE and TO_DATE('20210101','YYYYMMDD') do not fit that definition. If you have those
+in your cursor/query/view, you must cast them to DATE for it to work.
+
+*/
     --
     -- All non numeric fields will be surrounded with double quotes. Any double quotes in the
     -- data will be backwacked to protect them. Newlines in the data are passed through as is
