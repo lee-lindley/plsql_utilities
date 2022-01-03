@@ -1,2 +1,1 @@
-define subdir=.
-@install_app_job_log.sql
+@@install_app_job_log.sql

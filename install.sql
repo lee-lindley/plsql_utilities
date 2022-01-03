@@ -13,12 +13,20 @@ prompt arr_arr_varchar2_udt.tps
 prompt arr_integer_udt.tps
 @app_types/arr_integer_udt.tps
 --
--- japh_util_udt requires arr_varchar2_udt or you can edit it and use your own version
+-- japh_util_udt requires arr_varchar2_udt or you can use your own version by 
+-- setting it with this define.
+-- Setting of char_collection_type impacts japh_util, csv_to_table, and app_zip.
+--
+define char_collection_type="arr_varchar2_udt"
+--
 define subdir=japh_util
 prompt calling &&subdir/install_japh_util.sql
 @&&subdir/install_japh_util.sql
--- csv_to_table_pkg requires arr_varchar2_udt or you can edit it to use your own version
-define subdir=csv_to_table
+--
+-- csv_to_table_pkg requires arr_varchar2_udt or you can use your own version
+-- setting define char_collection_type
+--
+define subdir=csv_to_table 
 prompt calling &&subdir/install_csv_to_table.sql
 @&&subdir/install_csv_to_table.sql
 --
@@ -49,7 +57,9 @@ define subdir=as_zip
 prompt calling &&subdir/install_as_zip.sql
 @&&subdir/install_as_zip.sql
 --
--- requires as_zip, japh_util_udt (for split_csv), app_lob and arr_varchar2_udt(or equivalent you substitute in the source files)
+-- requires as_zip, japh_util_udt (for split_csv), app_lob 
+-- and arr_varchar2_udt (unless you change the definition of the define char_collection_type in the install script)
+--
 define subdir=app_zip
 prompt calling &&subdir/install_app_zip.sql
 @&&subdir/install_app_zip.sql

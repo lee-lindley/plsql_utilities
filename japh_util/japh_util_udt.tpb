@@ -24,7 +24,7 @@ CREATE OR REPLACE TYPE BODY japh_util_udt AS
 	*/
 
     CONSTRUCTOR FUNCTION japh_util_udt(
-        p_arr    arr_varchar2_udt DEFAULT NULL
+        p_arr    &&char_collection_type. DEFAULT NULL
     ) RETURN SELF AS RESULT
     IS
     BEGIN
@@ -44,7 +44,7 @@ CREATE OR REPLACE TYPE BODY japh_util_udt AS
     END;
     -- all are callable in a chain
     MEMBER FUNCTION get 
-    RETURN arr_varchar2_udt
+    RETURN &&char_collection_type.
     IS
     BEGIN
         RETURN arr;
@@ -52,16 +52,16 @@ CREATE OR REPLACE TYPE BODY japh_util_udt AS
 
     STATIC FUNCTION map(
         p_expr          VARCHAR2 -- not an anonymous block
-        ,p_arr          arr_varchar2_udt
+        ,p_arr          &&char_collection_type.
         ,p_             VARCHAR2 DEFAULT '$_' -- the string that is replaced in p_expr with array element
         -- example: v_arr := v_japh_util_udt(v_arr).map('t.$_ = q.$_');
-    ) RETURN arr_varchar2_udt
+    ) RETURN &&char_collection_type.
     IS
-        v_arr arr_varchar2_udt;
+        v_arr &&char_collection_type.;
     BEGIN
         IF p_arr IS NOT NULL
         THEN
-            v_arr := arr_varchar2_udt();
+            v_arr := &&char_collection_type.();
             v_arr.EXTEND(p_arr.COUNT);
             FOR i IN 1..p_arr.COUNT
             LOOP
@@ -83,7 +83,7 @@ CREATE OR REPLACE TYPE BODY japh_util_udt AS
 
 
     STATIC FUNCTION join(
-        p_arr   arr_varchar2_udt
+        p_arr   &&char_collection_type.
         ,p_separator    VARCHAR2 DEFAULT ','
     ) RETURN VARCHAR2
     IS
@@ -107,11 +107,11 @@ CREATE OR REPLACE TYPE BODY japh_util_udt AS
     END;
 
     STATIC FUNCTION sort(
-        p_arr           arr_varchar2_udt
+        p_arr           &&char_collection_type.
         ,p_descending   VARCHAR2 DEFAULT 'N'
-    ) RETURN arr_varchar2_udt
+    ) RETURN &&char_collection_type.
     IS
-        v_arr arr_varchar2_udt;
+        v_arr &&char_collection_type.;
     BEGIN
         IF p_descending IN ('Y','y') THEN
             SELECT column_value BULK COLLECT INTO v_arr
@@ -174,7 +174,7 @@ CREATE OR REPLACE TYPE BODY japh_util_udt AS
 	    ,p_separator    VARCHAR2    DEFAULT ','
 	    ,p_keep_nulls   VARCHAR2    DEFAULT 'N'
 	    ,p_strip_dquote VARCHAR2    DEFAULT 'Y' -- also unquotes \" and "" pairs within the field to just "
-	) RETURN arr_varchar2_udt DETERMINISTIC
+	) RETURN &&char_collection_type. DETERMINISTIC
 	-- when p_s IS NULL, returns initialized collection with COUNT=0
 	--
 	/*
@@ -198,7 +198,7 @@ CREATE OR REPLACE TYPE BODY japh_util_udt AS
 	
 	USAGE:
 	    DECLARE
-	        v_arr_varchar2  arr_varchar2_udt;
+	        v_arr_varchar2  &&char_collection_type.;
 	        v_s             VARCHAR2(256) 
 	            := '123.55,,abcdef,an excel unquoted string with a backwacked comma\, plus more in one field,"a true csv double quoted field with embedded "" and trailing space "';
 	    BEGIN
@@ -232,7 +232,7 @@ CREATE OR REPLACE TYPE BODY japh_util_udt AS
 	        v_occurence BINARY_INTEGER := 1;
 	        v_i         BINARY_INTEGER := 0;
 	        v_cnt       BINARY_INTEGER;
-	        v_arr       arr_varchar2_udt := arr_varchar2_udt();
+	        v_arr       &&char_collection_type. := &&char_collection_type.();
 	
 -- this is what you have to do in Oracle when you are NOT using transform_perl_regexp!!!
 

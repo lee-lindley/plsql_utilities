@@ -84,7 +84,7 @@ CREATE OR REPLACE TYPE BODY app_zip_udt AS
         ,p_name_list    VARCHAR2
         ,p_date         DATE DEFAULT SYSDATE
     ) IS
-        v_arr           arr_varchar2_udt;
+        v_arr           &&char_collection_type;
     BEGIN
         v_arr := japh_util_udt.split_csv(p_name_list);
         FOR i IN 1..v_arr.COUNT
@@ -108,7 +108,7 @@ CREATE OR REPLACE TYPE BODY app_zip_udt AS
         p_name_list     VARCHAR2
         ,p_date         DATE DEFAULT SYSDATE
     ) IS
-        v_arr           arr_varchar2_udt;
+        v_arr           &&char_collection_type;
         v_dir           VARCHAR2(4000);
         v_name          VARCHAR2(4000);
     BEGIN

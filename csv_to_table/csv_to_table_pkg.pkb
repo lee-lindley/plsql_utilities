@@ -33,7 +33,7 @@ SOFTWARE.
         ,p_separator    VARCHAR2    DEFAULT ','
         ,p_keep_nulls   VARCHAR2    DEFAULT 'N'
         ,p_strip_dquote VARCHAR2    DEFAULT 'Y' -- also unquotes \" and "" pairs within the field to just "
-    ) RETURN arr_varchar2_udt DETERMINISTIC
+    ) RETURN &&char_collection_type. DETERMINISTIC
     ;
 
 
@@ -118,7 +118,7 @@ SOFTWARE.
     ) RETURN DBMS_TF.DESCRIBE_T
     AS
         v_new_cols  DBMS_TF.columns_new_t;
-        v_col_names arr_varchar2_udt;
+        v_col_names &&char_collection_type.;
 
         -- a hash with key of column name and value of the column position in the CSV and output columns
         TYPE t_col_order IS TABLE OF BINARY_INTEGER INDEX BY VARCHAR2(128);
@@ -216,7 +216,7 @@ SOFTWARE.
         v_col_out_cnt       BINARY_INTEGER;     -- number of columns in our output
         v_output_col_type   BINARY_INTEGER;     -- a local holder of the column type
         --
-        v_col_strings       arr_varchar2_udt;   -- array of strings from splitting the CSV row into fields
+        v_col_strings       &&char_collection_type.;   -- array of strings from splitting the CSV row into fields
 
         g_row_num           NUMBER := 0;        -- the overall row number for the query of the original input lines
     BEGIN
@@ -336,7 +336,7 @@ has Oracle error: '||SQLERRM);
     ,p_separator    VARCHAR2    DEFAULT ','
     ,p_keep_nulls   VARCHAR2    DEFAULT 'N'
     ,p_strip_dquote VARCHAR2    DEFAULT 'Y' -- also unquotes \" and "" pairs within the field to just "
-  ) RETURN arr_varchar2_udt DETERMINISTIC
+  ) RETURN &&char_collection_type. DETERMINISTIC
 -- when p_s IS NULL, returns initialized collection with COUNT=0
 --
 /*
@@ -384,7 +384,7 @@ SOFTWARE.
         v_occurence BINARY_INTEGER := 1;
         v_i         BINARY_INTEGER := 0;
         v_cnt       BINARY_INTEGER;
-        v_arr       arr_varchar2_udt := arr_varchar2_udt();
+        v_arr       &&char_collection_type. := &&char_collection_type.();
 
         -- we are going to match multiple times. After each match the position 
         -- will be after the last separator.
