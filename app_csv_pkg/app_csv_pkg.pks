@@ -43,28 +43,52 @@ SOFTWARE.
     ;
 
     --
-    -- These two functions and two procedures expect the cursor to return rows containing a single VARCHAR2 column.
+    -- These two functions and six procedures expect the cursor to return rows containing a single VARCHAR2 column.
     -- Most often you will use in conjunction with a final WITH clause SELECT * from app_csv_pkg.ptf()
     --
+    PROCEDURE get_clob(
+        p_src               SYS_REFCURSOR
+        ,p_clob         OUT CLOB
+        ,p_rec_count    OUT NUMBER -- includes header row
+        ,p_lf_only          VARCHAR2 := 'Y'
+    );
     FUNCTION get_clob(
-        p_src       SYS_REFCURSOR
-        ,p_lf_only  VARCHAR2 := 'Y'
+        p_src               SYS_REFCURSOR
+        ,p_lf_only          VARCHAR2 := 'Y'
     ) RETURN CLOB
     ;
+    PROCEDURE get_clob(
+        p_sql               CLOB
+        ,p_clob         OUT CLOB
+        ,p_rec_count    OUT NUMBER -- includes header row
+        ,p_lf_only          VARCHAR2 := 'Y'
+    );
     FUNCTION get_clob(
-        p_sql       CLOB
-        ,p_lf_only  VARCHAR2 := 'Y'
+        p_sql               CLOB
+        ,p_lf_only          VARCHAR2 := 'Y'
     ) RETURN CLOB
     ;
     PROCEDURE write_file(
-         p_dir          VARCHAR2
-        ,p_file_name    VARCHAR2
-        ,p_src          SYS_REFCURSOR
+         p_dir              VARCHAR2
+        ,p_file_name        VARCHAR2
+        ,p_src              SYS_REFCURSOR
+        ,p_rec_cnt      OUT NUMBER -- includes header row
     );
     PROCEDURE write_file(
-         p_dir          VARCHAR2
-        ,p_file_name    VARCHAR2
-        ,p_sql          CLOB
+         p_dir              VARCHAR2
+        ,p_file_name        VARCHAR2
+        ,p_src              SYS_REFCURSOR
+    );
+    PROCEDURE write_file(
+         p_dir              VARCHAR2
+        ,p_file_name        VARCHAR2
+        ,p_sql              CLOB
+        ,p_rec_cnt      OUT NUMBER -- includes header row
+    );
+    PROCEDURE write_file(
+         p_dir              VARCHAR2
+        ,p_file_name        VARCHAR2
+        ,p_sql              CLOB
     );
 
     -- the describe and fetch procedures are used exclusively by the PTF mechanism. You cannot

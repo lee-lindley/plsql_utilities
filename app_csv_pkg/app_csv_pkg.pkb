@@ -23,40 +23,67 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
+    PROCEDURE get_clob(
+        p_src               SYS_REFCURSOR
+        ,p_clob         OUT CLOB
+        ,p_rec_count    OUT NUMBER -- includes header row 
+        ,p_lf_only          VARCHAR2 := 'Y'
+    )
+    IS
+        v_tab_varchar2  DBMS_TF.tab_varchar2_t;
+        v_line_end      VARCHAR2(2) := CASE WHEN p_lf_only IN ('Y','y') THEN CHR(10) ELSE CHR(13)||CHR(10) END;
+    BEGIN
+        p_rec_count := 0;
+        LOOP
+            FETCH p_src BULK COLLECT INTO v_tab_varchar2 LIMIT 100;
+            EXIT WHEN v_tab_varchar2.COUNT = 0;
+            FOR i IN 1..v_tab_varchar2.COUNT
+            LOOP
+                p_clob := p_clob||v_tab_varchar2(i)||v_line_end;
+            END LOOP;
+            p_rec_count := p_rec_count + v_tab_varchar2.COUNT;
+        END LOOP;
+    END get_clob;
+
     FUNCTION get_clob(
         p_src       SYS_REFCURSOR
         ,p_lf_only  VARCHAR2 := 'Y'
     ) RETURN CLOB
     IS
         v_clob          CLOB;
-        v_tab_varchar2  DBMS_TF.tab_varchar2_t;
-        v_line_end      VARCHAR2(2) := CASE WHEN p_lf_only IN ('Y','y') THEN CHR(10) ELSE CHR(13)||CHR(10) END;
+        v_x             NUMBER;
     BEGIN
-        LOOP
-            FETCH p_src BULK COLLECT INTO v_tab_varchar2 LIMIT 100;
-            EXIT WHEN v_tab_varchar2.COUNT = 0;
-            FOR i IN 1..v_tab_varchar2.COUNT
-            LOOP
-                v_clob := v_clob||v_tab_varchar2(i)||v_line_end;
-            END LOOP;
-        END LOOP;
+        get_clob(p_src => p_src, p_clob => v_clob, p_rec_count => v_x, p_lf_only => p_lf_only);
         RETURN v_clob;
     END get_clob;
+
+
+    PROCEDURE get_clob(
+        p_sql               CLOB
+        ,p_clob         OUT CLOB
+        ,p_rec_count    OUT NUMBER -- includes header row
+        ,p_lf_only          VARCHAR2 := 'Y'
+    )
+    IS
+        v_src   SYS_REFCURSOR;
+    BEGIN
+        OPEN v_src FOR p_sql;
+        get_clob(p_src => v_src, p_clob => p_clob, p_rec_count => p_rec_count, p_lf_only => p_lf_only);
+        BEGIN
+            CLOSE v_src;
+            EXCEPTION WHEN invalid_cursor THEN NULL;
+        END;
+    END;
 
     FUNCTION get_clob(
         p_sql       CLOB
         ,p_lf_only  VARCHAR2 := 'Y'
     ) RETURN CLOB
     IS
-        v_src       SYS_REFCURSOR;
         v_clob      CLOB;
+        v_x         NUMBER;
     BEGIN
-        OPEN v_src FOR p_sql;
-        v_clob := get_clob(v_src, p_lf_only);
-        BEGIN
-            CLOSE v_src;
-            EXCEPTION WHEN invalid_cursor THEN NULL;
-        END;
+        get_clob(p_sql  => p_sql, p_clob => v_clob, p_rec_count => v_x, p_lf_only => p_lf_only);
         RETURN v_clob;
     END;
 
@@ -64,6 +91,7 @@ SOFTWARE.
          p_dir          VARCHAR2
         ,p_file_name    VARCHAR2
         ,p_src          SYS_REFCURSOR
+        ,p_rec_cnt  OUT NUMBER -- includes header row
     ) IS
         v_tab_varchar2  DBMS_TF.tab_varchar2_t;
         v_file          UTL_FILE.file_type;
@@ -74,6 +102,7 @@ SOFTWARE.
             ,open_mode      => 'w'
             ,max_linesize   => 32767
         );
+        p_rec_cnt := 0;
         LOOP
             FETCH p_src BULK COLLECT INTO v_tab_varchar2 LIMIT 100;
             EXIT WHEN v_tab_varchar2.COUNT = 0;
@@ -81,6 +110,7 @@ SOFTWARE.
             LOOP
                 UTL_FILE.put_line(v_file, v_tab_varchar2(i));
             END LOOP;
+            p_rec_cnt := p_rec_cnt + v_tab_varchar2.COUNT;
         END LOOP;
         UTL_FILE.fclose(v_file);
     EXCEPTION WHEN OTHERS THEN
@@ -93,7 +123,23 @@ SOFTWARE.
     PROCEDURE write_file(
          p_dir          VARCHAR2
         ,p_file_name    VARCHAR2
+        ,p_src          SYS_REFCURSOR
+    ) IS
+        v_x             NUMBER;
+    BEGIN
+        write_file(
+            p_dir           => p_dir
+            ,p_file_name    => p_file_name
+            ,p_src          => p_src
+            ,p_rec_cnt      => v_x
+        );
+    END write_file;
+
+    PROCEDURE write_file(
+         p_dir          VARCHAR2
+        ,p_file_name    VARCHAR2
         ,p_sql          CLOB
+        ,p_rec_cnt  OUT NUMBER -- includes header row
     ) IS
         v_src           SYS_REFCURSOR;
     BEGIN
@@ -102,6 +148,7 @@ SOFTWARE.
             p_dir           => p_dir
             ,p_file_name    => p_file_name
             ,p_src          => v_src
+            ,p_rec_cnt      => p_rec_cnt
         );
         BEGIN
             CLOSE v_src;
@@ -110,7 +157,27 @@ SOFTWARE.
     END write_file
     ;
 
+    PROCEDURE write_file(
+         p_dir          VARCHAR2
+        ,p_file_name    VARCHAR2
+        ,p_sql          CLOB
+    ) IS
+        v_x             NUMBER;
+    BEGIN
+        write_file(
+            p_dir           => p_dir
+            ,p_file_name    => p_file_name
+            ,p_sql          => p_sql
+            ,p_rec_cnt      => v_x
+        );
+    END write_file
+    ;
 
+    --
+    -- The rest of this package body is the guts of the Polymorphic Table Function
+    -- from the package specification named "ptf". You do not call these directly.
+    -- Only the SQL engine calls them.
+    -- 
     FUNCTION describe(
         p_tab IN OUT            DBMS_TF.TABLE_T
         ,p_header_row           VARCHAR2 := 'Y'
@@ -188,12 +255,15 @@ SOFTWARE.
                     ELSE
                         DBMS_TF.col_to_char(v_rowset(p_col_index), p_row_index)
                 END;
+            -- numbers are not quoted by default by col_to_char, but if they contain the separator charcter
+            -- we need to put them in double quotes.
             IF SUBSTR(v_s,1,1) != '"' AND INSTR(v_s,p_separator) != 0 THEN
                 v_s := '"'||v_s||'"';
             END IF;
             RETURN v_s;
         END; -- apply_cust_conv
-    BEGIN
+
+    BEGIN -- start of fetch_rows procedure body
 
         IF p_header_row IN ('Y','y') THEN
             -- We need to put out a header row, so we have to engage in replication_factor shenanigans.

@@ -40,7 +40,8 @@ per the MIT license, others are already public domain. Included are
 
 Runs each of these scripts in correct order.
 
-*japh_util_udt* and *csv_to_table* depend upon [arr_varchar2_udt](#arr_varchar2_udt). 
+*japh_util_udt* and *csv_to_table* depend upon [arr_varchar2_udt](#arr_varchar2_udt) unless you change
+the define value for **char_collection_type** in *install.sql*
 
 *app_zip* depends on [as_zip](#as_zip), [app_lob](#app_lob), [arr_varchar2_udt](#arr_varchar2_udt), and [japh__util_udt](#japh__util_udt) (for split_csv).
 
@@ -744,34 +745,53 @@ The CSV that is generated complies with the RFC for comma separated values.
     ) RETURN TABLE
     PIPELINED TABLE POLYMORPHIC USING app_csv_pkg
     ;
-
     --
-    -- These two functions and two procedures expect the cursor to return rows containing a 
-    -- single VARCHAR2 column.
-    -- Most often you will use in conjunction with a final WITH clause like
-    -- WITH my_with_clause AS (
-    --     ...
-    -- ) SELECT * from app_csv_pkg.ptf(my_with_clause)
+    -- These two functions and six procedures expect the cursor to return rows containing a single VARCHAR2 column.
+    -- Most often you will use in conjunction with a final WITH clause SELECT * from app_csv_pkg.ptf()
     --
+    PROCEDURE get_clob(
+        p_src               SYS_REFCURSOR
+        ,p_clob         OUT CLOB
+        ,p_rec_count    OUT NUMBER -- includes header row
+        ,p_lf_only          VARCHAR2 := 'Y'
+    );
     FUNCTION get_clob(
-        p_src       SYS_REFCURSOR
-        ,p_lf_only  VARCHAR2 := 'Y'
+        p_src               SYS_REFCURSOR
+        ,p_lf_only          VARCHAR2 := 'Y'
     ) RETURN CLOB
     ;
+    PROCEDURE get_clob(
+        p_sql               CLOB
+        ,p_clob         OUT CLOB
+        ,p_rec_count    OUT NUMBER -- includes header row
+        ,p_lf_only          VARCHAR2 := 'Y'
+    );
     FUNCTION get_clob(
-        p_sql       CLOB
-        ,p_lf_only  VARCHAR2 := 'Y'
+        p_sql               CLOB
+        ,p_lf_only          VARCHAR2 := 'Y'
     ) RETURN CLOB
     ;
     PROCEDURE write_file(
-         p_dir          VARCHAR2
-        ,p_file_name    VARCHAR2
-        ,p_src          SYS_REFCURSOR
+         p_dir              VARCHAR2
+        ,p_file_name        VARCHAR2
+        ,p_src              SYS_REFCURSOR
+        ,p_rec_cnt      OUT NUMBER -- includes header row
     );
     PROCEDURE write_file(
-         p_dir          VARCHAR2
-        ,p_file_name    VARCHAR2
-        ,p_sql          CLOB
+         p_dir              VARCHAR2
+        ,p_file_name        VARCHAR2
+        ,p_src              SYS_REFCURSOR
+    );
+    PROCEDURE write_file(
+         p_dir              VARCHAR2
+        ,p_file_name        VARCHAR2
+        ,p_sql              CLOB
+        ,p_rec_cnt      OUT NUMBER -- includes header row
+    );
+    PROCEDURE write_file(
+         p_dir              VARCHAR2
+        ,p_file_name        VARCHAR2
+        ,p_sql              CLOB
     );
 
 ```
