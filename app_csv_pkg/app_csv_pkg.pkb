@@ -271,8 +271,12 @@ SOFTWARE.
                 END;
             -- numbers are not quoted by default by col_to_char, but if they contain the separator charcter
             -- we need to put them in double quotes.
-            IF SUBSTR(v_s,1,1) != '"' AND INSTR(v_s,p_separator) != 0 THEN
-                v_s := '"'||v_s||'"';
+            IF SUBSTR(v_s,1,1) != '"'  THEN
+                IF INSTR(v_s,p_separator) != 0 THEN
+                    v_s := '"'||v_s||'"';
+                END IF;
+            ELSIF INSTR(v_s, '"', 2) != LENGTH(v_s) THEN -- we have embedded dquotes, so double them up
+                v_s := '"'||REPLACE(SUBSTR(v_s, 2, LENGTH(v_s) - 2), '"', '""')||'"';
             END IF;
             RETURN v_s;
         END; -- apply_cust_conv
