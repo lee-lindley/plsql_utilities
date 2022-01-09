@@ -642,7 +642,7 @@ do better. (really! I like to learn.)
 
 ### split_clob_to_lines
 
-The input CLOB is expected to have multiple lines separated by newline (CHR(10). If you have 
+The input CLOB is expected to have multiple lines separated by newline (CHR(10)). If you have 
 Carriage Returns (CHR(13)) they are included in the resulting rows in the collection, but it is whitespace
 and probably won't matter.
 

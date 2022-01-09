@@ -56,7 +56,7 @@ SOFTWARE.
         SELF.default_interval_fmt := p_default_interval_fmt;
 
         -- we start with these null. They can add them to override defaults with set_formats
-        arr_fmts := arr_varchar2_udt();
+        arr_fmts := &&d_arr_varchar2_udt.();
         arr_fmts.EXTEND(col_cnt);
 
         -- allocate all of the arrays and array elements one time
