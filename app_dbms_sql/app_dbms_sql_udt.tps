@@ -49,9 +49,9 @@ SOFTWARE.
     ,total_rows_fetched     INTEGER
     ,rows_fetched           INTEGER
     ,row_index              INTEGER
-    ,col_types              arr_integer_udt
+    ,col_types              &&d_arr_integer_udt.
     -- added 20210910 so can override column headers with Oracle keyword values not allowed in queries
-    ,col_names              arr_varchar2_udt
+    ,col_names              &&d_arr_varchar2_udt.
     --,CONSTRUCTOR FUNCTION app_dbms_sql_udt(
     --    p_cursor                SYS_REFCURSOR
     --    ,p_bulk_count           INTEGER := 100
@@ -73,8 +73,8 @@ SOFTWARE.
         ,p_col_index            INTEGER
         ,p_col_name             VARCHAR2
     )
-    ,FINAL MEMBER FUNCTION get_column_names   RETURN arr_varchar2_udt
-    ,FINAL MEMBER FUNCTION get_column_types   RETURN arr_integer_udt
+    ,FINAL MEMBER FUNCTION get_column_names   RETURN &&d_arr_varchar2_udt.
+    ,FINAL MEMBER FUNCTION get_column_types   RETURN &&d_arr_integer_udt.
     -- should only call after completing read of all rows
     ,FINAL MEMBER FUNCTION get_row_count RETURN INTEGER
     -- called from fetch_next_row, subtypes must provide the code

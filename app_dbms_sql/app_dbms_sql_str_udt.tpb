@@ -48,7 +48,7 @@ SOFTWARE.
         ,p_default_interval_fmt VARCHAR2 := NULL
     )
     IS
-        v_arr_clob  arr_clob_udt := arr_clob_udt();
+        v_arr_clob  &&d_arr_clob_udt. := &&d_arr_clob_udt.();
     BEGIN
         SELF.base_constructor(p_cursor, p_bulk_count);
         SELF.default_num_fmt := p_default_num_fmt;
@@ -61,7 +61,7 @@ SOFTWARE.
 
         -- allocate all of the arrays and array elements one time
         -- buf gets as many rows as we will collect on one bulk
-        buf := arr_arr_clob_udt();
+        buf := &&d_arr_arr_clob_udt.();
         buf.EXTEND(p_bulk_count);
         -- our empty row array has entries for each column
         v_arr_clob.EXTEND(col_cnt);
@@ -310,7 +310,7 @@ SOFTWARE.
     -- convert everything to strings
     FINAL MEMBER PROCEDURE get_column_values(
         SELF     IN OUT NOCOPY app_dbms_sql_str_udt
-        ,p_arr_clob OUT NOCOPY arr_clob_udt
+        ,p_arr_clob OUT NOCOPY &&d_arr_clob_udt.
     ) 
     IS
     BEGIN
@@ -325,7 +325,7 @@ SOFTWARE.
 
     FINAL MEMBER PROCEDURE get_next_column_values(
         SELF     IN OUT NOCOPY app_dbms_sql_str_udt
-        ,p_arr_clob OUT NOCOPY arr_clob_udt
+        ,p_arr_clob OUT NOCOPY &&d_arr_clob_udt.
     ) 
     IS
     BEGIN

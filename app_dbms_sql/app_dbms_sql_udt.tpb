@@ -75,13 +75,13 @@ SOFTWARE.
         col_names(p_col_index) := p_col_name;
     END set_column_name;
 
-    FINAL MEMBER FUNCTION get_column_names RETURN arr_varchar2_udt
+    FINAL MEMBER FUNCTION get_column_names RETURN &&d_arr_varchar2_udt.
     IS
     BEGIN
         RETURN col_names;
     END get_column_names;
 
-    FINAL MEMBER FUNCTION get_column_types RETURN arr_integer_udt
+    FINAL MEMBER FUNCTION get_column_types RETURN &&d_arr_integer_udt.
     IS
     BEGIN
         RETURN col_types;
@@ -149,9 +149,9 @@ SOFTWARE.
         -- populates attribut col_cnt
         DBMS_SQL.describe_columns3(ctx, col_cnt, v_t);
 
-        col_types   := arr_integer_udt();
+        col_types   := &&d_arr_integer_udt.();
         col_types.EXTEND(col_cnt);
-        col_names   := arr_varchar2_udt();
+        col_names   := &&d_arr_varchar2_udt.();
         col_names.EXTEND(col_cnt);
         -- have dbms_sql define the bulk column associative arrays
         FOR i IN 1..col_cnt

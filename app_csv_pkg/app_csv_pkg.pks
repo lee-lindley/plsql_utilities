@@ -38,7 +38,7 @@ in your cursor/query/view, you must cast them to DATE for it to work.
 */
     --
     -- All non numeric fields will be surrounded with double quotes. Any double quotes in the
-    -- data will be backwacked to protect them. Newlines in the data are passed through as is
+    -- data will be doubled up to conform to the RFC. Newlines in the data are passed through as is
     -- which might cause issues for some CSV parsers.
     FUNCTION ptf(
         p_tab                   TABLE
@@ -53,9 +53,34 @@ in your cursor/query/view, you must cast them to DATE for it to work.
         POLYMORPHIC USING app_csv_pkg
     ;
 
+
+    --
+    -- a) If it contains the string app_csv_pkg.ptf (case insensitive match), then it is returned as is. and your 
+    --      other arguments are ignored because you should have used them directly in the PTF call.
+    -- b) If it does not start with the case insensitive pattern '\s*WITH\s', then we wrap it with a 'WITH R AS (' and
+    --      a ') SELECT * FROM app_csv_pkg.ptf(R, __your_parameter_vals__)' before calling it.
+    -- c) If it starts with 'WITH', then we search for the final sql clause as '(^.+\))(\s*SELECT\s.+$)' breaking it
+    --      into two parts. Between them we add ', R_app_csv_pkg_ptf AS (' and at the end we put
+    --      ') SELECT * FROM app_csv_pkg.ptf(R_app_csv_pkg_ptf, __your_parameter_vals__)'
+    -- Best thing to do is run your query through the function and see what you get. It has worked in my test cases.
+    --
+    FUNCTION get_ptf_query_string(
+        p_sql                   CLOB
+        ,p_header_row           VARCHAR2 := 'Y' 
+        ,p_separator            VARCHAR2 := ','
+        -- you can set these to NULL if you want the default TO_CHAR conversions
+        ,p_date_format          VARCHAR2 := NULL
+        ,p_interval_format      VARCHAR2 := NULL
+    ) RETURN CLOB
+    ;
+
     --
     -- These two functions and six procedures expect the cursor to return rows containing a single VARCHAR2 column.
-    -- Most often you will use in conjunction with a final WITH clause SELECT * from app_csv_pkg.ptf()
+    -- Most often you will use in conjunction with a final WITH clause SELECT * from app_csv_pkg.ptf(). If you
+    -- are using the p_src(sys_refcursor) version, then it is required that your query conform or is generating
+    -- rows independently (though why you would use these methods in that case is a mystery).
+    -- If you are using the p_sql(CLOB) versions, the method will transform your SQL using get_ptf_query_string
+    -- thus wrapping your query in a call to the PTF so it can generate CSV data
     --
     PROCEDURE get_clob(
         p_src               SYS_REFCURSOR
@@ -69,14 +94,26 @@ in your cursor/query/view, you must cast them to DATE for it to work.
     ) RETURN CLOB
     ;
     PROCEDURE get_clob(
-        p_sql               CLOB
-        ,p_clob         OUT CLOB
-        ,p_rec_count    OUT NUMBER -- includes header row
-        ,p_lf_only          VARCHAR2 := 'Y'
+        p_sql                   CLOB
+        ,p_clob             OUT CLOB
+        ,p_rec_count        OUT NUMBER -- includes header row
+        ,p_lf_only              VARCHAR2 := 'Y'
+        -- these only matter if you have the procedure call the PTF for you by not including it in your sql
+        ,p_header_row           VARCHAR2 := 'Y' 
+        ,p_separator            VARCHAR2 := ','
+        -- you can set these to NULL if you want the default TO_CHAR conversions
+        ,p_date_format          VARCHAR2 := NULL
+        ,p_interval_format      VARCHAR2 := NULL
     );
     FUNCTION get_clob(
-        p_sql               CLOB
-        ,p_lf_only          VARCHAR2 := 'Y'
+        p_sql                   CLOB
+        ,p_lf_only              VARCHAR2 := 'Y'
+        -- these only matter if you have the procedure call the PTF for you by not including it in your sql
+        ,p_header_row           VARCHAR2 := 'Y' 
+        ,p_separator            VARCHAR2 := ','
+        -- you can set these to NULL if you want the default TO_CHAR conversions
+        ,p_date_format          VARCHAR2 := NULL
+        ,p_interval_format      VARCHAR2 := NULL
     ) RETURN CLOB
     ;
     PROCEDURE write_file(
@@ -91,15 +128,27 @@ in your cursor/query/view, you must cast them to DATE for it to work.
         ,p_src              SYS_REFCURSOR
     );
     PROCEDURE write_file(
-         p_dir              VARCHAR2
-        ,p_file_name        VARCHAR2
-        ,p_sql              CLOB
-        ,p_rec_cnt      OUT NUMBER -- includes header row
+         p_dir                  VARCHAR2
+        ,p_file_name            VARCHAR2
+        ,p_sql                  CLOB
+        ,p_rec_cnt          OUT NUMBER -- includes header row
+        -- these only matter if you have the procedure call the PTF for you by not including it in your sql
+        ,p_header_row           VARCHAR2 := 'Y' 
+        ,p_separator            VARCHAR2 := ','
+        -- you can set these to NULL if you want the default TO_CHAR conversions
+        ,p_date_format          VARCHAR2 := NULL
+        ,p_interval_format      VARCHAR2 := NULL
     );
     PROCEDURE write_file(
-         p_dir              VARCHAR2
-        ,p_file_name        VARCHAR2
-        ,p_sql              CLOB
+         p_dir                  VARCHAR2
+        ,p_file_name            VARCHAR2
+        ,p_sql                  CLOB
+        -- these only matter if you have the procedure call the PTF for you by not including it in your sql
+        ,p_header_row           VARCHAR2 := 'Y' 
+        ,p_separator            VARCHAR2 := ','
+        -- you can set these to NULL if you want the default TO_CHAR conversions
+        ,p_date_format          VARCHAR2 := NULL
+        ,p_interval_format      VARCHAR2 := NULL
     );
 
     -- the describe and fetch procedures are used exclusively by the PTF mechanism. You cannot

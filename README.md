@@ -38,10 +38,15 @@ per the MIT license, others are already public domain. Included are
 
 ## install.sql
 
-Runs each of these scripts in correct order.
+*install.sql* runs each of these scripts in correct order.
 
-*japh_util_udt* and *csv_to_table* depend upon [arr_varchar2_udt](#arr_varchar2_udt) unless you change
-the define value for **char_collection_type** in *install.sql*
+There are sqlplus *define* statements at the top of the script for naming basic collection types.
+In this document I refer to them with **arr\*X\*udt names**, but you can follow your own naming guidelines
+for them. If you already have types with the same characteristics, put those into the *define* statements
+and then comment out the calls to build them in *app_types/install_app_types.sql*.
+
+
+*japh_util_udt* and *csv_to_table* depend upon [arr_varchar2_udt](#arr_varchar2_udt) .
 
 *app_zip* depends on [as_zip](#as_zip), [app_lob](#app_lob), [arr_varchar2_udt](#arr_varchar2_udt), and [japh__util_udt](#japh__util_udt) (for split_csv).
 
@@ -49,7 +54,7 @@ the define value for **char_collection_type** in *install.sql*
 if you set the compile directive define use_html_email to 'TRUE' in *app_job_log/install_app_job_log.sql*.
 
 Other than those, you can compile these separately or not at all. If you run *install.sql*
-as is, it will install 15 of the 16 components (and sub-components).
+as is, it will install 14 of the 15 components (and sub-components).
 
 The compile for [app_dbms_sql](#app_dbms_sql) is commented out. It is generally compiled from a repository
 that includes *plsql_utilities* as a submodule. It requires [arr_arr_clob_udt](#arr_arr_clob_udt),
@@ -346,22 +351,14 @@ that you will probably want to be able to update in production without a code pr
 
 Two user defined types. *arr_clob_udt* is a TABLE OF CLOB. *arr_arr_clob_udt* is a 
 TABLE OF *arr_clob_udt* (or array of arrays).
-If you already
-have these in some form, by all means use them instead. Replace all references to *arr_arr_clob_udt*
-(do this one first so you do not match *arr_clob_udt*)
-and *arr_clob_udt* in the other files you deploy.
 
 ## arr_varchar2_udt
 
-User Defined Type Table of VARCHAR2(4000) required for some of these utilities. If you already
-have one of these, by all means use it instead. Replace all references to *arr_varchar2_udt*
-in the other files you deploy.
+User Defined Type Table of VARCHAR2(4000) required for some of these utilities. 
 
 ## arr_integer_udt
 
-User Defined Type Table of INTEGER required for some of these utilities. If you already
-have one of these, by all means use it instead. Replace all references to *arr_integer_udt*
-in the other files you deploy.
+User Defined Type Table of INTEGER required for some of these utilities. 
 
 ## japh_util_udt
 
@@ -375,6 +372,7 @@ The user defined type holds an *arr_varchar2_udt* member which you will use when
 - join
 - sort
 - get
+- combine
 
 It has static method *split_csv* (returns an *arr_varchar2_udt*) that 
 formerly lived as a standalone function in the plsql_utilities library as *split*.
@@ -428,12 +426,26 @@ CREATE OR REPLACE TYPE japh_util_udt AUTHID CURRENT_USER AS OBJECT (
         p_expr          VARCHAR2 -- not an anonymous block
         ,p_arr          arr_varchar2_udt
         ,p_             VARCHAR2 DEFAULT '$_' -- the string that is replaced in p_expr with array element
-        -- example: v_arr := v_japh_util_udt(v_arr).map('t.$_ = q.$_');
     ) RETURN arr_varchar2_udt
     ,MEMBER FUNCTION map(
         p_expr          VARCHAR2 -- not an anonymous block
         ,p_             VARCHAR2 DEFAULT '$_' -- the string that is replaced in p_expr with array element
         -- example: v_arr := v_japh_util_udt(v_arr).map('t.$_ = q.$_');
+    ) RETURN japh_util_udt
+    -- combines elements of 2 arrays based on p_expr and returns a new array
+    ,STATIC FUNCTION combine(
+        p_expr          VARCHAR2 -- not anonymous block. $_a_ and $_b_ are replaced
+        ,p_arr_a        arr_varchar2_udt
+        ,p_arr_b        arr_varchar2_udt
+        ,p_a            VARCHAR2 DEFAULT '$_a_'
+        ,p_b            VARCHAR2 DEFAULT '$_b_'
+    ) RETURN arr_varchar2_udt
+    ,MEMBER FUNCTION combine(
+        p_expr          VARCHAR2 -- not anonymous block. $_a_ and $_b_ are replaced
+        ,p_arr_b        arr_varchar2_udt
+        ,p_a            VARCHAR2 DEFAULT '$_a_'
+        ,p_b            VARCHAR2 DEFAULT '$_b_'
+        -- example: v_arr := v_japh_util_udt(v_arr).combine(q'['$_a_' AS $_b_]', v_second_array);
     ) RETURN japh_util_udt
     -- join the elements into a string with a separator between them
     ,STATIC FUNCTION join(
@@ -493,6 +505,32 @@ functionality. We are not doing an anonymous block or anything really fancy. We 
 not think it would be a good idea. Keep your expectations low.
 
 It returns a new *japh_util_udt* object with the transformed elements.
+
+### combine
+
+Not really a Perl thing, but I found myself needing to combine elements of two
+arrays into a new string value in a corresponding array often. It works kind of like map 
+and kind of like sort does with the $a and $b variables for different elements (well, different
+elements in a single list, but hopefully you get the idea). Given an expression:
+
+    '$_a_ combines with $_b_'
+
+and the input array from the object instance plus the input array named *p_arr_b*,
+it loops through the elements substituting the value from the object instance array
+whereever '$\_a\_' occurs in the string and the value from the array named *p_arr_b*
+wherever '$\_b\_' occurs in the string. The result is stuffed into the return array
+at the same index. You can use different placeholders than '$\*_a_' by specifying 
+the placholder strings in the arguments *p_a* and *p_b*.
+
+It returns a new *japh_util_udt* object with the transformed/combined elements.
+
+For our example if the first element of our object array was 'abc'
+and the first element of *p_arr_b* was 'xyz' we would get
+
+    'abc combines with xyz'
+
+in the first element of the returned array object.
+
 
 ### get
 
@@ -724,13 +762,14 @@ Result exported from sqldeveloper as CSV:
 I have another repository named *app_csv_udt*
 that should run on Oracle 10g or better, that has a bit more options, and an Object Oriented
 interface I prefer. I've found many people are less comfortable with the Object Oriented interface.
-This is also a little simpler.
+This is also simpler in many respects.
 
-> ADDENDUM: There is a substantial limitation of Polymorphic Table Functions that may make
+> ADDENDUM: There is a substantial limitation of Polymorphic Table Functions at least as of 19.6 (may
+have been addressed in later releases) that may make
 [app_csv_udt](https://github.com/lee-lindley/app_csv) a better choice. Only SCALAR
 values are allowed for columns, which sounds innocuous enough, until you understand that
-SYSDATE and TO_DATE('20210101','YYYYMMDD') do not fit that definition. If you have those
-in your cursor/query/view, you must cast them to DATE for it to work. More detail follows
+SYSDATE and TO_DATE('20210101','YYYYMMDD') do not fit that definition for reasons I cannot fathom.
+If you have those in your cursor/query/view, you must cast them to DATE for it to work. More detail follows
 at the bottom of this section.
 
 Given a Table or Common Table Expression (CTE) (aka WITH clause), convert the incoming
@@ -738,7 +777,6 @@ data into Comma Separated Value rows. There are also methods for generating a CL
 all of the rows and for writing to a file.
 
 The CSV that is generated complies with the RFC for comma separated values.
-
 
 Package *app_csv_pkg* specification:
 
@@ -757,9 +795,34 @@ Package *app_csv_pkg* specification:
     ) RETURN TABLE
     PIPELINED TABLE POLYMORPHIC USING app_csv_pkg
     ;
+
+    --
+    -- a) If your sql contains the string app_csv_pkg.ptf (case insensitive match), then it is returned as is. and your 
+    --      other arguments are ignored because you should have used them directly in the PTF call.
+    -- b) If it does not start with the case insensitive pattern '\s*WITH\s', then we wrap it with a 'WITH R AS (' and
+    --      a ') SELECT * FROM app_csv_pkg.ptf(R, __your_parameter_vals__)' before calling it.
+    -- c) If it starts with 'WITH', then we search for the final sql clause as '(^.+\))(\s*SELECT\s.+$)' breaking it
+    --      into two parts. Between them we add ', R_app_csv_pkg_ptf AS (' and at the end we put
+    --      ') SELECT * FROM app_csv_pkg.ptf(R_app_csv_pkg_ptf, __your_parameter_vals__)'
+    -- Best thing to do is run your query through the function and see what you get. It has worked in my test cases.
+    --
+    FUNCTION get_ptf_query_string(
+        p_sql                   CLOB
+        ,p_header_row           VARCHAR2 := 'Y' 
+        ,p_separator            VARCHAR2 := ','
+        -- you can set these to NULL if you want the default TO_CHAR conversions
+        ,p_date_format          VARCHAR2 := NULL
+        ,p_interval_format      VARCHAR2 := NULL
+    ) RETURN CLOB
+    ;
+
     --
     -- These two functions and six procedures expect the cursor to return rows containing a single VARCHAR2 column.
-    -- Most often you will use in conjunction with a final WITH clause SELECT * from app_csv_pkg.ptf()
+    -- Most often you will use in conjunction with a final WITH clause SELECT * from app_csv_pkg.ptf(). If you
+    -- are using the p_src(sys_refcursor) version, then it is required that your query conform or is generating
+    -- rows independently (though why you would use these methods in that case is a mystery).
+    -- If you are using the p_sql(CLOB) versions, the method will transform your SQL using get_ptf_query_string
+    -- thus wrapping your query in a call to the PTF so it can generate CSV data
     --
     PROCEDURE get_clob(
         p_src               SYS_REFCURSOR
@@ -777,10 +840,22 @@ Package *app_csv_pkg* specification:
         ,p_clob         OUT CLOB
         ,p_rec_count    OUT NUMBER -- includes header row
         ,p_lf_only          VARCHAR2 := 'Y'
+        -- these only matter if you have the procedure call the PTF for you by not including it in your sql
+        ,p_header_row           VARCHAR2 := 'Y' 
+        ,p_separator            VARCHAR2 := ','
+        -- you can set these to NULL if you want the default TO_CHAR conversions
+        ,p_date_format          VARCHAR2 := NULL
+        ,p_interval_format      VARCHAR2 := NULL
     );
     FUNCTION get_clob(
         p_sql               CLOB
         ,p_lf_only          VARCHAR2 := 'Y'
+        -- these only matter if you have the procedure call the PTF for you by not including it in your sql
+        ,p_header_row           VARCHAR2 := 'Y' 
+        ,p_separator            VARCHAR2 := ','
+        -- you can set these to NULL if you want the default TO_CHAR conversions
+        ,p_date_format          VARCHAR2 := NULL
+        ,p_interval_format      VARCHAR2 := NULL
     ) RETURN CLOB
     ;
     PROCEDURE write_file(
@@ -799,11 +874,23 @@ Package *app_csv_pkg* specification:
         ,p_file_name        VARCHAR2
         ,p_sql              CLOB
         ,p_rec_cnt      OUT NUMBER -- includes header row
+        -- these only matter if you have the procedure call the PTF for you by not including it in your sql
+        ,p_header_row           VARCHAR2 := 'Y' 
+        ,p_separator            VARCHAR2 := ','
+        -- you can set these to NULL if you want the default TO_CHAR conversions
+        ,p_date_format          VARCHAR2 := NULL
+        ,p_interval_format      VARCHAR2 := NULL
     );
     PROCEDURE write_file(
          p_dir              VARCHAR2
         ,p_file_name        VARCHAR2
         ,p_sql              CLOB
+        -- these only matter if you have the procedure call the PTF for you by not including it in your sql
+        ,p_header_row           VARCHAR2 := 'Y' 
+        ,p_separator            VARCHAR2 := ','
+        -- you can set these to NULL if you want the default TO_CHAR conversions
+        ,p_date_format          VARCHAR2 := NULL
+        ,p_interval_format      VARCHAR2 := NULL
     );
 
 ```
@@ -834,7 +921,7 @@ Output (notice how the header row counts as one of the 10 rows! It is just a dat
     "Bates, Elizabeth","20070324",172
     "Bell, Sarah","20040204",192
 
-Example 2:
+Example 2 (YOU call the PTF yourself in your query):
 
 ```sql
 SELECT app_csv_pkg.get_clob(q'[
@@ -864,6 +951,83 @@ Output is a single CLOB value that you could attach to an email or insert into a
     "Bell, Sarah"|"02/04/2004"|192
     "Bernstein, David"|"03/24/2005"|151
 
+
+Example 3 (You depend on get_clob to add the PTF call to your query):
+
+```sql
+SELECT app_csv_pkg.get_clob(
+        p_sql => q'[
+            SELECT * 
+            FROM (
+                SELECT last_name||', '||first_name AS "Employee Name", hire_date AS "Hire Date", employee_id AS "Employee ID"
+                FROM hr.employees
+                ORDER BY last_name, first_name
+            ) R
+            WHERE rownum <= 10]'
+        , p_separator => '|', p_header_row => 'N', p_date_format => 'MM/DD/YYYY'
+       ) 
+FROM dual;
+```
+
+Example 4 (notice the '="' trick to make Excel treat the number as a string):
+
+```sql
+SELECT 
+       --app_csv_pkg.get_ptf_query_string(
+       app_csv_pkg.get_clob(
+        p_sql => q'[
+            WITH a AS (
+                SELECT last_name||', '||first_name AS "Employee Name", hire_date AS "Hire Date"
+                    ,'="'||employee_id||'"' AS "Employee ID"
+                FROM hr.employees
+                ORDER BY last_name, first_name
+            ) SELECT *
+            FROM a
+            WHERE rownum <= 10]'
+        , p_separator => ',', p_header_row => 'Y', p_date_format => 'MM/DD/YYYY'
+       ) 
+FROM dual;
+```
+
+The query it runs for you as shown by the call to *get_ptf_query_string* that is commented out above is:
+```sql
+
+            WITH a AS (
+                SELECT last_name||', '||first_name AS "Employee Name", hire_date AS "Hire Date"
+                    ,'="'||employee_id||'"' AS "Employee ID"
+                FROM hr.employees
+                ORDER BY last_name, first_name
+            )
+, R_app_csv_pkg_ptf AS (
+ SELECT *
+            FROM a
+            WHERE rownum <= 10
+)
+    SELECT * FROM app_csv_pkg.ptf(
+                        p_tab           => R_app_csv_pkg_ptf
+                        ,p_header_row   => 'Y'
+                        ,p_separator    => ','
+                        ,p_date_format  => 'MM/DD/YYYY'
+                        ,p_interval_format => NULL
+                  )
+```
+The results including the trick with the '=' follow. That syntax of doubling up the dquotes inside a double quoted
+string conforms with the RFC and excel interprets it correctly. You might do this if you have string with leading zeros
+that Excel wants to automatically convert to numbers, or perhaps very large numbers that excel wants to display with
+exponents.
+
+    "Employee Name","Hire Date","Employee ID"
+    "Abel, Ellen","05/11/2004","=""174"""
+    "Ande, Sundar","03/24/2008","=""166"""
+    "Atkinson, Mozhe","10/30/2005","=""130"""
+    "Austin, David","06/25/2005","=""105"""
+    "Baer, Hermann","06/07/2002","=""204"""
+    "Baida, Shelli","12/24/2005","=""116"""
+    "Banda, Amit","04/21/2008","=""167"""
+    "Bates, Elizabeth","03/24/2007","=""172"""
+    "Bell, Sarah","02/04/2004","=""192"""
+    "Bernstein, David","03/24/2005","=""151"""
+
 ### Issue with PTF and DATE Functions
 
 Beware if your query produces a calculated date value like TO_DATE('01/01/2021','MM/DD/YYYY') or SYSDATE,
@@ -878,9 +1042,12 @@ You must cast the value to DATE if you want to use it in a PTF:
 You can't even trap it in the PTF function itself because you don't get
 to put any code there; it is generated by the SQL engine before it ever calls the PTF DESCRIBE method.
 The *app_csv_pkg.write* and *app_csv_pkg.get_clob* procedures that take a SQL string as input will trap that error and 
-report it in a little more helpful way, but if you are opening your own cursor, you will get ORA62558,
+report it in a little more helpful way, but if you are opening your own sys_refcursor, you will get ORA62558,
 and the explanation is less than helpful. This [post](https://blog.sqlora.com/en/using-subqueries-with-ptf-or-sql-macros/)
 is where I found out about the cause.
+
+I believe this issue has been addressed in later releases, but I do not currently have any systems higher than 19.6 
+to test upon.
 
 ## to_zoned_decimal
 

@@ -23,6 +23,49 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
+    FUNCTION get_ptf_query_string(
+        p_sql                   CLOB
+        ,p_header_row           VARCHAR2 := 'Y' 
+        ,p_separator            VARCHAR2 := ','
+        -- you can set these to NULL if you want the default TO_CHAR conversions
+        ,p_date_format          VARCHAR2 := NULL
+        ,p_interval_format      VARCHAR2 := NULL
+    ) RETURN CLOB
+    IS
+        v_clob                  CLOB;
+    BEGIN
+        IF REGEXP_LIKE(p_sql, 'app_csv_pkg.ptf', 'i') THEN
+            RETURN p_sql;
+        END IF;
+        IF REGEXP_LIKE(p_sql, '^\s*with\s', 'i') THEN
+            v_clob := REGEXP_SUBSTR(p_sql, '(^.+\))(\s*SELECT\s.+$)', 1, 1, 'in', 1);
+            v_clob := v_clob||'
+, R_app_csv_pkg_ptf AS (
+';
+            v_clob := v_clob||REGEXP_SUBSTR(p_sql, '(^.+\))(\s*SELECT\s.+$)', 1, 1, 'in', 2);
+            v_clob := v_clob||'
+)';
+        ELSE
+            v_clob := 'WITH R_app_csv_pkg_ptf AS (
+'||p_sql||'
+)';
+        END IF;
+        v_clob := v_clob||q'[
+    SELECT * FROM app_csv_pkg.ptf(
+                        p_tab           => R_app_csv_pkg_ptf
+                        ,p_header_row   => ']'||p_header_row||q'['
+                        ,p_separator    => ']'||p_separator||q'['
+                        ,p_date_format  => ]'
+                || CASE WHEN p_date_format IS NULL THEN 'NULL' ELSE q'[']'||p_date_format||q'[']' END
+                || '
+                        ,p_interval_format => '
+                || CASE WHEN p_interval_format IS NULL THEN 'NULL' ELSE q'[']'||p_interval_format||q'[']' END
+                ||'
+                  )';
+        RETURN v_clob;
+    END get_ptf_query_string
+    ;
+
     PROCEDURE get_clob(
         p_src               SYS_REFCURSOR
         ,p_clob         OUT CLOB
@@ -57,20 +100,32 @@ SOFTWARE.
         RETURN v_clob;
     END get_clob;
 
-
     PROCEDURE get_clob(
-        p_sql               CLOB
-        ,p_clob         OUT CLOB
-        ,p_rec_count    OUT NUMBER -- includes header row
-        ,p_lf_only          VARCHAR2 := 'Y'
+        p_sql                   CLOB
+        ,p_clob             OUT CLOB
+        ,p_rec_count        OUT NUMBER -- includes header row
+        ,p_lf_only              VARCHAR2 := 'Y'
+        -- these only matter if you have the procedure call the PTF for you by not including it in your sql
+        ,p_header_row           VARCHAR2 := 'Y' 
+        ,p_separator            VARCHAR2 := ','
+        -- you can set these to NULL if you want the default TO_CHAR conversions
+        ,p_date_format          VARCHAR2 := NULL
+        ,p_interval_format      VARCHAR2 := NULL
     )
     IS
+        v_sql       CLOB := get_ptf_query_string(
+                                p_sql
+                                ,p_header_row
+                                ,p_separator
+                                ,p_date_format
+                                ,p_interval_format
+                            );
         v_src       SYS_REFCURSOR;
         ORA62558    EXCEPTION;
         pragma EXCEPTION_INIT(ORA62558, -62558);
     BEGIN
         BEGIN
-            OPEN v_src FOR p_sql;
+            OPEN v_src FOR v_sql;
         EXCEPTION WHEN ORA62558 THEN
             raise_application_error(-20001, 'sqlcode: '||sqlcode||' One or more columns in the query not supported. If coming from a view that calculates the date, do CAST(val AS DATE) in the view or your sql to fix it.');
         END;
@@ -83,14 +138,28 @@ SOFTWARE.
     END;
 
     FUNCTION get_clob(
-        p_sql       CLOB
-        ,p_lf_only  VARCHAR2 := 'Y'
+        p_sql                   CLOB
+        ,p_lf_only              VARCHAR2 := 'Y'
+        -- these only matter if you have the procedure call the PTF for you by not including it in your sql
+        ,p_header_row           VARCHAR2 := 'Y' 
+        ,p_separator            VARCHAR2 := ','
+        -- you can set these to NULL if you want the default TO_CHAR conversions
+        ,p_date_format          VARCHAR2 := NULL
+        ,p_interval_format      VARCHAR2 := NULL
     ) RETURN CLOB
     IS
         v_clob      CLOB;
         v_x         NUMBER;
     BEGIN
-        get_clob(p_sql  => p_sql, p_clob => v_clob, p_rec_count => v_x, p_lf_only => p_lf_only);
+        get_clob(p_sql          => p_sql
+            ,p_clob             => v_clob
+            ,p_rec_count        => v_x
+            ,p_lf_only          => p_lf_only
+            ,p_header_row       => p_header_row
+            ,p_separator        => p_separator
+            ,p_date_format      => p_date_format
+            ,p_interval_format  => p_interval_format
+        );
         RETURN v_clob;
     END;
 
@@ -147,13 +216,26 @@ SOFTWARE.
         ,p_file_name    VARCHAR2
         ,p_sql          CLOB
         ,p_rec_cnt  OUT NUMBER -- includes header row
+        -- these only matter if you have the procedure call the PTF for you by not including it in your sql
+        ,p_header_row           VARCHAR2 := 'Y' 
+        ,p_separator            VARCHAR2 := ','
+        -- you can set these to NULL if you want the default TO_CHAR conversions
+        ,p_date_format          VARCHAR2 := NULL
+        ,p_interval_format      VARCHAR2 := NULL
     ) IS
+        v_sql       CLOB := get_ptf_query_string(
+                                p_sql
+                                ,p_header_row
+                                ,p_separator
+                                ,p_date_format
+                                ,p_interval_format
+                            );
         v_src           SYS_REFCURSOR;
         ORA62558        EXCEPTION;
         pragma EXCEPTION_INIT(ORA62558, -62558);
     BEGIN
         BEGIN
-            OPEN v_src FOR p_sql;
+            OPEN v_src FOR v_sql;
         EXCEPTION WHEN ORA62558 THEN
             raise_application_error(-20001, 'sqlcode: '||sqlcode||' One or more columns in the query not supported. If coming from a view that calculates the date, do CAST(val AS DATE) in the view or your sql to fix it.');
         END;
@@ -175,6 +257,12 @@ SOFTWARE.
          p_dir          VARCHAR2
         ,p_file_name    VARCHAR2
         ,p_sql          CLOB
+        -- these only matter if you have the procedure call the PTF for you by not including it in your sql
+        ,p_header_row           VARCHAR2 := 'Y' 
+        ,p_separator            VARCHAR2 := ','
+        -- you can set these to NULL if you want the default TO_CHAR conversions
+        ,p_date_format          VARCHAR2 := NULL
+        ,p_interval_format      VARCHAR2 := NULL
     ) IS
         v_x             NUMBER;
     BEGIN
@@ -183,6 +271,10 @@ SOFTWARE.
             ,p_file_name    => p_file_name
             ,p_sql          => p_sql
             ,p_rec_cnt      => v_x
+            ,p_header_row   => p_header_row
+            ,p_separator    => p_separator
+            ,p_date_format  => p_date_format
+            ,p_interval_format  => p_interval_format
         );
     END write_file
     ;

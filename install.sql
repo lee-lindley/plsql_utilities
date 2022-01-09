@@ -1,21 +1,25 @@
 set serveroutput on
 --
--- You can pick and choose which of these to deploy. Dependencies are noted.
+-- People care about naming conventions. You must define these collection type names.
+-- If you already have collection types named the way you like, define those names here
+-- and comment out the install of the corresponding type in the app_types/install_app_types.sql script
 --
-prompt arr_clob_udt.tps
-@app_types/arr_clob_udt.tps
-prompt arr_arr_clob_udt.tps
-@app_types/arr_arr_clob_udt.tps
-prompt arr_varchar2_udt.tps
-@app_types/arr_varchar2_udt.tps
-prompt arr_arr_varchar2_udt.tps
-@app_types/arr_arr_varchar2_udt.tps
-prompt arr_integer_udt.tps
-@app_types/arr_integer_udt.tps
+define d_arr_integer_udt="arr_integer_udt"
+define d_arr_varchar2_udt="arr_varchar2_udt"
+define d_arr_arr_varchar2_udt="arr_arr_varchar2_udt"
+define d_arr_clob_udt="arr_clob_udt"
+define d_arr_arr_clob_udt="arr_arr_clob_udt"
+-- Here are some alternative names that may suit
+--define d_arr_integer_udt="integer_tab_t"
+--define d_arr_varchar2_udt="varchar2_tab_t"
+--define d_arr_arr_varchar2_udt="varchar2_tab_tab_t"
+--define d_arr_clob_udt="clob_tab_t"
+--define d_arr_arr_clob_udt="clob_tab_tab_t"
 --
--- japh_util_udt requires arr_varchar2_udt or you can use your own version by 
--- setting it with this define.
--- Setting of char_collection_type impacts japh_util, csv_to_table, and app_zip.
+prompt app_types/install_app_types.sql
+@@app_types/install_app_types.sql
+--
+-- japh_util_udt requires arr_varchar2_udt or your version of same
 --
 define char_collection_type="arr_varchar2_udt"
 --
@@ -58,7 +62,7 @@ prompt calling &&subdir/install_as_zip.sql
 @&&subdir/install_as_zip.sql
 --
 -- requires as_zip, japh_util_udt (for split_csv), app_lob 
--- and arr_varchar2_udt (unless you change the definition of the define char_collection_type in the install script)
+-- and arr_varchar2_udt 
 --
 define subdir=app_zip
 prompt calling &&subdir/install_app_zip.sql
