@@ -28,7 +28,7 @@ per the MIT license, others are already public domain. Included are
 6. [arr_arr_clob_udt](#arr_arr_clob_udt)
 7. [arr_varchar2_udt](#arr_varchar2_udt)
 8. [arr_integer_udt](#arr_integer_udt)
-9. [japh_util_udt](#japh_util_udt)
+9. [perlish_util_udt](#perlish_util_udt)
 10. [csv_to_table](#csv_to_table)
 11. [app_csv_pkg](#app_csv_pkg)
 12. [to_zoned_decimal](#to_zoned_decimal)
@@ -41,20 +41,25 @@ per the MIT license, others are already public domain. Included are
 *install.sql* runs each of these scripts in correct order.
 
 There are sqlplus *define* statements at the top of the script for naming basic collection types.
-In this document I refer to them with **arr\*X\*udt names**, but you can follow your own naming guidelines
+In this document I refer to them with **arr\*X\*udt** names, but you can follow your own naming guidelines
 for them. If you already have types with the same characteristics, put those into the *define* statements
 and then comment out the calls to build them in *app_types/install_app_types.sql*.
 
 
-*japh_util_udt* and *csv_to_table* depend upon [arr_varchar2_udt](#arr_varchar2_udt) .
+*perlish_util_udt* and *csv_to_table* depend upon [arr_varchar2_udt](#arr_varchar2_udt) .
 
-*app_zip* depends on [as_zip](#as_zip), [app_lob](#app_lob), [arr_varchar2_udt](#arr_varchar2_udt), and [japh__util_udt](#japh__util_udt) (for split_csv).
+*app_zip* depends on [as_zip](#as_zip), [app_lob](#app_lob), [arr_varchar2_udt](#arr_varchar2_udt), and [perlish_util_udt](#perlish__util_udt) (for split_csv).
 
 *app_job_log* depends on [app_log](#app_log), and optionally on [html_email](https://github.com/lee-lindley/html_email)
 if you set the compile directive define use_html_email to 'TRUE' in *app_job_log/install_app_job_log.sql*.
 
 Other than those, you can compile these separately or not at all. If you run *install.sql*
-as is, it will install 14 of the 15 components (and sub-components).
+as is, it will install 13 of the 15 components (and sub-components).
+
+The compile for [csv_to_table](#csv_to_table) is commented out. The complexity is excessive
+for most use cases which can be fulfilled using the [perlish_util_udt](#perlish_util_udt) *split_clob_to_lines*,
+constructor, and *get* methods. See examples. I have not given up on it yet though. If I come up
+with use cases that make sense, I'll reconsider making it a first class citizen.
 
 The compile for [app_dbms_sql](#app_dbms_sql) is commented out. It is generally compiled from a repository
 that includes *plsql_utilities* as a submodule. It requires [arr_arr_clob_udt](#arr_arr_clob_udt),
@@ -360,13 +365,21 @@ User Defined Type Table of VARCHAR2(4000) required for some of these utilities.
 
 User Defined Type Table of INTEGER required for some of these utilities. 
 
-## japh_util_udt
+## perlish_util_udt
 
-The Just Another Perl Hacker utilities (JAPH) will warm the hearts of those who are dissapointed
-when they have to program in PL/SQL. It isn't Perl, but it makes some Perlish things a bit
-easier in PL/SQL.  
+It isn't Perl, but it makes some Perlish things a bit easier in PL/SQL. We also get
+handy methods for splitting Comma Separated Value (CSV) text up into lines and fields,
+which you can use independently of the Perlish methods.
 
-The user defined type holds an *arr_varchar2_udt* member which you will use when employing the following member methods;
+There is valid argument
+that when you are programming in a language you should use the facilities of that language, 
+and that attempting to layer the techniques of another language upon it is a bad idea. I see the logic
+and partially agree. I expect those who later must support my work that uses this utility will curse me. Yet
+PL/SQL really sucks at some string and list related things. This uses valid PL/SQL object techniques
+to manipulate strings and lists in a way that is familiar to Perl hackers. I make the case that it isn't
+much different than what is done with the *XMLTYPE* object. YMMV.
+
+This user defined type holds an *arr_varchar2_udt* attribute which you will use when employing the following member methods;
 
 - map
 - join
@@ -376,15 +389,19 @@ The user defined type holds an *arr_varchar2_udt* member which you will use when
 
 It has static method *split_csv* (returns an *arr_varchar2_udt*) that 
 formerly lived as a standalone function in the plsql_utilities library as *split*.
-It also has a static method named *transform_perl_regexp* that has nothing to do with arrays, but is Perlish.
+We have a static method *split_clob_to_lines* that returns an *arr_varchar2_udt* collection
+of "records" from what is assumed to be a CSV file. It parses for CSV syntax when splitting the lines
+which means there can be embedded newlines in text fields in a "record".
+
+It also has a static method named *transform_perl_regexp* that has nothing to do with arrays/lists, but is Perlish.
 
 Most of the member methods are chainable which is handy when you are doing a series of operations.
 
 Example 1:
 ```sql
-    select japh_util_udt(p_arr => arr_varchar2_udt('one', 'two', 'three', 'four')).sort().join(', ') from dual;
+    select perlish_util_udt(p_arr => arr_varchar2_udt('one', 'two', 'three', 'four')).sort().join(', ') from dual;
     -- Or using split_csv version of the constructor
-    select japh_util_udt('one, two, three, four').sort().join(', ') from dual;
+    select perlish_util_udt('one, two, three, four').sort().join(', ') from dual;
 ```
 Output:
 
@@ -392,7 +409,7 @@ Output:
 
 Example 2:
 ```sql
-    select japh_util_udt('id, type').map('t.$_ = q.$_').join(' AND ') from dual;
+    select perlish_util_udt('id, type').map('t.$_ = q.$_').join(' AND ') from dual;
 ```
 Output:
 
@@ -400,7 +417,7 @@ Output:
 
 Example 3:
 ```sql
-    select japh_util_udt('id, type').map('  t.$_ = q.$_').join(',
+    select perlish_util_udt('id, type').map('  t.$_ = q.$_').join(',
     ') from dual;
 ```
 
@@ -409,19 +426,23 @@ Example 3:
 
 Notice that there are static versions of all of the methods. You do not have to create an
 object or use the object method syntax. You can use each of them independently as if they
-were in a package named *japh_util_udt*.
+were in a package named *perlish_util_udt*.
 
 ```sql
-CREATE OR REPLACE TYPE japh_util_udt AUTHID CURRENT_USER AS OBJECT (
+CREATE OR REPLACE TYPE perlish_util_udt AUTHID CURRENT_USER AS OBJECT (
     arr     arr_varchar2_udt
-    ,CONSTRUCTOR FUNCTION japh_util_udt(
+    ,CONSTRUCTOR FUNCTION perlish_util_udt(
         p_arr    arr_varchar2_udt DEFAULT NULL
     ) RETURN SELF AS RESULT
-    ,CONSTRUCTOR FUNCTION japh_util_udt(
+    ,CONSTRUCTOR FUNCTION perlish_util_udt(
         p_csv   VARCHAR2
     ) RETURN SELF AS RESULT
-    -- all are callable in a chain if they return japh_util_udt; otherwise must be end of chain
+    -- all are callable in a chain if they return perlish_util_udt; otherwise must be end of chain
     ,MEMBER FUNCTION get RETURN arr_varchar2_udt
+    -- get a collection element
+    ,MEMBER FUNCTION get(
+        p_i             NUMBER
+    ) RETURN VARCHAR2
     ,STATIC FUNCTION map(
         p_expr          VARCHAR2 -- not an anonymous block
         ,p_arr          arr_varchar2_udt
@@ -430,8 +451,8 @@ CREATE OR REPLACE TYPE japh_util_udt AUTHID CURRENT_USER AS OBJECT (
     ,MEMBER FUNCTION map(
         p_expr          VARCHAR2 -- not an anonymous block
         ,p_             VARCHAR2 DEFAULT '$_' -- the string that is replaced in p_expr with array element
-        -- example: v_arr := v_japh_util_udt(v_arr).map('t.$_ = q.$_');
-    ) RETURN japh_util_udt
+        -- example: v_arr := v_perlish_util_udt(v_arr).map('t.$_ = q.$_');
+    ) RETURN perlish_util_udt
     -- combines elements of 2 arrays based on p_expr and returns a new array
     ,STATIC FUNCTION combine(
         p_expr          VARCHAR2 -- not anonymous block. $_a_ and $_b_ are replaced
@@ -445,8 +466,8 @@ CREATE OR REPLACE TYPE japh_util_udt AUTHID CURRENT_USER AS OBJECT (
         ,p_arr_b        arr_varchar2_udt
         ,p_a            VARCHAR2 DEFAULT '$_a_'
         ,p_b            VARCHAR2 DEFAULT '$_b_'
-        -- example: v_arr := v_japh_util_udt(v_arr).combine(q'['$_a_' AS $_b_]', v_second_array);
-    ) RETURN japh_util_udt
+        -- example: v_arr := v_perlish_util_udt(v_arr).combine(q'['$_a_' AS $_b_]', v_second_array);
+    ) RETURN perlish_util_udt
     -- join the elements into a string with a separator between them
     ,STATIC FUNCTION join(
         p_arr           arr_varchar2_udt
@@ -462,7 +483,7 @@ CREATE OR REPLACE TYPE japh_util_udt AUTHID CURRENT_USER AS OBJECT (
     ) RETURN arr_varchar2_udt
     ,MEMBER FUNCTION sort(
         p_descending    VARCHAR2 DEFAULT 'N'
-    ) RETURN japh_util_udt
+    ) RETURN perlish_util_udt
     --
     -- these are really standalone but this was a good place to stash them
     --
@@ -475,9 +496,12 @@ CREATE OR REPLACE TYPE japh_util_udt AUTHID CURRENT_USER AS OBJECT (
 	    ,p_keep_nulls   VARCHAR2    DEFAULT 'N'
 	    ,p_strip_dquote VARCHAR2    DEFAULT 'Y' -- also unquotes \" and "" pairs within the field to just "
 	) RETURN arr_varchar2_udt DETERMINISTIC
+
+    ,STATIC FUNCTION split_clob_to_lines(p_clob CLOB)
+    RETURN arr_varchar2_udt DETERMINISTIC
 );
 ```
-### CONSTRUCTOR japh_util_udt
+### CONSTRUCTOR perlish_util_udt
 
 You can call it with no argument, a string that will be split on commas, or an *arr_varchar2_udt* collection.
 For reasons I have not figured out, if you call it with the *arr_varchar2_udt* collection
@@ -493,36 +517,38 @@ It works pretty much the same as Perl *join*.
 ### sort
 
 I almost didn't provide this but the fact that you have to reach out to the SQL engine
-to do a sort in PL/SQL is sort of annoying. It sorts the incoming array and returns a new
-*japh_util_udt* argument with the sorted results.
+to do a sort in PL/SQL is sort of annoying (you decide whether the pun is  intended). 
+It calls the SQL engine to sort the incoming list and returns a new
+*perlish_util_udt* object with the sorted results.
 
 ### map
 
-The array elements are transformed by replacing the token '$\_'
-with the array element as many times
+The list elements are transformed by replacing the token '$\_'
+with the each list element as many times
 as it appears in the *p_expr* string. Note that this is just an expression version of the Perl *map*
 functionality. We are not doing an anonymous block or anything really fancy. We could, but I do
 not think it would be a good idea. Keep your expectations low.
 
-It returns a new *japh_util_udt* object with the transformed elements.
+It returns a new *perlish_util_udt* object with the transformed elements.
 
 ### combine
 
-Not really a Perl thing, but I found myself needing to combine elements of two
-arrays into a new string value in a corresponding array often. It works kind of like map 
+Not really a Perl thing because in Perl we would build anonymous arrays/hashes on the fly to do it, 
+but I often find myself needing to combine elements of two
+lists into a new string value list. It works kind of like map 
 and kind of like sort does with the $a and $b variables for different elements (well, different
 elements in a single list, but hopefully you get the idea). Given an expression:
 
     '$_a_ combines with $_b_'
 
-and the input array from the object instance plus the input array named *p_arr_b*,
+and the input list from the object instance plus the input array named *p_arr_b*,
 it loops through the elements substituting the value from the object instance array
-whereever '$\_a\_' occurs in the string and the value from the array named *p_arr_b*
+whereever '$\_a\_' occurs in the string, and the value from the array named *p_arr_b*
 wherever '$\_b\_' occurs in the string. The result is stuffed into the return array
-at the same index. You can use different placeholders than '$\*_a_' by specifying 
+at the same index. You can use different placeholders than '$\_a\_' by specifying 
 the placholder strings in the arguments *p_a* and *p_b*.
 
-It returns a new *japh_util_udt* object with the transformed/combined elements.
+It returns a new *perlish_util_udt* object with the transformed/combined elements.
 
 For our example if the first element of our object array was 'abc'
 and the first element of *p_arr_b* was 'xyz' we would get
@@ -534,7 +560,12 @@ in the first element of the returned array object.
 
 ### get
 
-Simply returns the collection from the object so you don't put your grubby paws on it directly.
+The method with no arguments returns the collection from the object so you don't need to
+put your grubby paws on it directly.
+
+The method that takes a NUMBER argument returns an element of the collection. Not only does this allow us
+to avoid accessing the member attribute directly, it allows us to get a value from the collection in SQL! See
+examples from *split_clob_to_lines*.
 
 ### transform_perl_regexp
 
@@ -560,7 +591,7 @@ backwack is protected. It isn't clever enough to figure out '\\\\\n'. Tough. Wri
 This means you can write a regular expression that looks like this:
 
 ```sql
-    v_re := japh_util_udt.transform_perl_regexp('
+    v_re := perlish_util_udt.transform_perl_regexp('
 (                               -- capture in \1
   (                             -- going to group 0 or more of these things
     [^"\n]+                     -- any number of chars that are not dquote or newline
@@ -608,6 +639,58 @@ See https://www.loc.gov/preservation/digital/formats/fdd/fdd000323.shtml
 The problem turned out to be much more complex than I thought when starting the work.
 If you like playing with regular expressions, take a gander and tell me if you can 
 do better. (really! I like to learn.)
+
+### split_clob_to_lines
+
+The input CLOB is expected to have multiple lines separated by newline (CHR(10). If you have 
+Carriage Returns (CHR(13)) they are included in the resulting rows in the collection, but it is whitespace
+and probably won't matter.
+
+The lines can be CSV records meaning they can have double quoted strings that even include newlines.
+It will figure them out. The idea is you can have a CLOB like so:
+
+    "abc",123,xyz
+    def,456,"ghi"
+    lmn,789,opq
+
+and pull the lines out like so:
+
+```sql
+select t.column_value as line 
+from table(perlish_util_udt.split_clob_to_lines(q'["abc",123,xyz
+def,456,"ghi"
+lmn,789,opq]'
+     ) t
+```
+
+The most practical thing to do with them at that point is call *split_csv* on them,
+which, conveniently, one of the *perlish_util_udt* constructors will do for us!
+
+```sql
+WITH a AS (
+    SELECT perlish_util_udt(t.column_value) AS p
+    FROM TABLE( perlish_util_udt.split_clob_to_lines(
+q'["abc",123,xyz
+def,456,"ghi"
+lmn,789,opq]'
+                                                    )
+    ) t
+) -- remember you need a table alias to access object methods and attributes
+-- thus making the table alias x for a here.
+SELECT x.p.get(1) AS col1, x.p.get(2) AS col2, x.p.get(3) AS col3
+FROM a x
+;
+```
+This results in:
+
+    "COL1"	"COL2"	"COL3"
+    "abc"	"123"	"xyz"
+    "def"	"456"	"ghi"
+    "lmn"	"789"	"opq"
+
+That requires the person writing the SQL to know how many columns are in the CSV data
+and what they are, which really isn't much of a hardship. *csv_to_table* (described next) provides for
+named columns, but is probably not necessary for most use cases.
 
 ## csv_to_table
 
@@ -764,7 +847,7 @@ that should run on Oracle 10g or better, that has a bit more options, and an Obj
 interface I prefer. I've found many people are less comfortable with the Object Oriented interface.
 This is also simpler in many respects.
 
-> ADDENDUM: There is a substantial limitation of Polymorphic Table Functions at least as of 19.6 (may
+> ADDENDUM: There is a substantial limitation of Polymorphic Table Functions at least as of 19.6 and 20.3 (may
 have been addressed in later releases) that may make
 [app_csv_udt](https://github.com/lee-lindley/app_csv) a better choice. Only SCALAR
 values are allowed for columns, which sounds innocuous enough, until you understand that
@@ -825,21 +908,21 @@ Package *app_csv_pkg* specification:
     -- thus wrapping your query in a call to the PTF so it can generate CSV data
     --
     PROCEDURE get_clob(
-        p_src               SYS_REFCURSOR
-        ,p_clob         OUT CLOB
-        ,p_rec_count    OUT NUMBER -- includes header row
-        ,p_lf_only          VARCHAR2 := 'Y'
+        p_src                   SYS_REFCURSOR
+        ,p_clob             OUT CLOB
+        ,p_rec_count        OUT NUMBER -- includes header row
+        ,p_lf_only              VARCHAR2 := 'Y'
     );
     FUNCTION get_clob(
-        p_src               SYS_REFCURSOR
-        ,p_lf_only          VARCHAR2 := 'Y'
+        p_src                   SYS_REFCURSOR
+        ,p_lf_only              VARCHAR2 := 'Y'
     ) RETURN CLOB
     ;
     PROCEDURE get_clob(
-        p_sql               CLOB
-        ,p_clob         OUT CLOB
-        ,p_rec_count    OUT NUMBER -- includes header row
-        ,p_lf_only          VARCHAR2 := 'Y'
+        p_sql                   CLOB
+        ,p_clob             OUT CLOB
+        ,p_rec_count        OUT NUMBER -- includes header row
+        ,p_lf_only              VARCHAR2 := 'Y'
         -- these only matter if you have the procedure call the PTF for you by not including it in your sql
         ,p_header_row           VARCHAR2 := 'Y' 
         ,p_separator            VARCHAR2 := ','
@@ -848,8 +931,8 @@ Package *app_csv_pkg* specification:
         ,p_interval_format      VARCHAR2 := NULL
     );
     FUNCTION get_clob(
-        p_sql               CLOB
-        ,p_lf_only          VARCHAR2 := 'Y'
+        p_sql                   CLOB
+        ,p_lf_only              VARCHAR2 := 'Y'
         -- these only matter if you have the procedure call the PTF for you by not including it in your sql
         ,p_header_row           VARCHAR2 := 'Y' 
         ,p_separator            VARCHAR2 := ','
@@ -859,21 +942,21 @@ Package *app_csv_pkg* specification:
     ) RETURN CLOB
     ;
     PROCEDURE write_file(
-         p_dir              VARCHAR2
-        ,p_file_name        VARCHAR2
-        ,p_src              SYS_REFCURSOR
-        ,p_rec_cnt      OUT NUMBER -- includes header row
+         p_dir                  VARCHAR2
+        ,p_file_name            VARCHAR2
+        ,p_src                  SYS_REFCURSOR
+        ,p_rec_cnt          OUT NUMBER -- includes header row
     );
     PROCEDURE write_file(
-         p_dir              VARCHAR2
-        ,p_file_name        VARCHAR2
-        ,p_src              SYS_REFCURSOR
+         p_dir                  VARCHAR2
+        ,p_file_name            VARCHAR2
+        ,p_src                  SYS_REFCURSOR
     );
     PROCEDURE write_file(
-         p_dir              VARCHAR2
-        ,p_file_name        VARCHAR2
-        ,p_sql              CLOB
-        ,p_rec_cnt      OUT NUMBER -- includes header row
+         p_dir                  VARCHAR2
+        ,p_file_name            VARCHAR2
+        ,p_sql                  CLOB
+        ,p_rec_cnt          OUT NUMBER -- includes header row
         -- these only matter if you have the procedure call the PTF for you by not including it in your sql
         ,p_header_row           VARCHAR2 := 'Y' 
         ,p_separator            VARCHAR2 := ','
@@ -882,9 +965,9 @@ Package *app_csv_pkg* specification:
         ,p_interval_format      VARCHAR2 := NULL
     );
     PROCEDURE write_file(
-         p_dir              VARCHAR2
-        ,p_file_name        VARCHAR2
-        ,p_sql              CLOB
+         p_dir                  VARCHAR2
+        ,p_file_name            VARCHAR2
+        ,p_sql                  CLOB
         -- these only matter if you have the procedure call the PTF for you by not including it in your sql
         ,p_header_row           VARCHAR2 := 'Y' 
         ,p_separator            VARCHAR2 := ','
@@ -1031,7 +1114,8 @@ exponents.
 ### Issue with PTF and DATE Functions
 
 Beware if your query produces a calculated date value like TO_DATE('01/01/2021','MM/DD/YYYY') or SYSDATE,
-or is from a view that does something similar. This datatype is NOT exactly a DATE and is
+or is from a view that does something similar. This datatype is an "in memory" DATE (as opposed to a schema
+object type DATE) and is
 not a supported type. It throws the PTF engine into a tizzy. 
 You must cast the value to DATE if you want to use it in a PTF:
 
@@ -1046,8 +1130,11 @@ report it in a little more helpful way, but if you are opening your own sys_refc
 and the explanation is less than helpful. This [post](https://blog.sqlora.com/en/using-subqueries-with-ptf-or-sql-macros/)
 is where I found out about the cause.
 
-I believe this issue has been addressed in later releases, but I do not currently have any systems higher than 19.6 
-to test upon.
+I have seen articles that suggest it has been addressed in some releases at least in terms of SQL macros.
+The list of supported types in DBMS_TF in 20.3 has
+TYPE_EDATE listed as 184, but the query is giving type 13 and calling the PTF with that CTE
+is returning ORA-62558 exception. Maybe something about SQL macros works around it, but I haven't
+gone there yet.
 
 ## to_zoned_decimal
 

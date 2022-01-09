@@ -86,7 +86,7 @@ CREATE OR REPLACE TYPE BODY app_zip_udt AS
     ) IS
         v_arr           &&d_arr_varchar2_udt.;
     BEGIN
-        v_arr := japh_util_udt.split_csv(p_name_list);
+        v_arr := perlish_util_udt.split_csv(p_name_list);
         FOR i IN 1..v_arr.COUNT
         LOOP
             add_blob(app_lob.filetoblob(p_dir, v_arr(i)) ,v_arr(i), p_date);
@@ -112,7 +112,7 @@ CREATE OR REPLACE TYPE BODY app_zip_udt AS
         v_dir           VARCHAR2(4000);
         v_name          VARCHAR2(4000);
     BEGIN
-        v_arr := japh_util_udt.split_csv(p_name_list);
+        v_arr := perlish_util_udt.split_csv(p_name_list);
         FOR i IN 1..v_arr.COUNT
         LOOP
             v_dir := REGEXP_SUBSTR(v_arr(i), '^[^/]+');

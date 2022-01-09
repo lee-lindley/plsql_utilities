@@ -1,4 +1,6 @@
-CREATE OR REPLACE TYPE japh_util_udt AUTHID CURRENT_USER AS OBJECT (
+CREATE OR REPLACE TYPE perlish_util_udt FORCE 
+--AUTHID CURRENT_USER 
+AS OBJECT (
 /*
 	MIT License
 	
@@ -23,16 +25,21 @@ CREATE OR REPLACE TYPE japh_util_udt AUTHID CURRENT_USER AS OBJECT (
 	SOFTWARE.
 */
     arr     &&d_arr_varchar2_udt.
---select japh_util_udt(p_arr => &&d_arr_varchar2_udt.('one', 'two', 'three', 'four')).sort().join(', ') from dual;
---select japh_util_udt('one, two, three, four').sort().join(', ') from dual;
-    ,CONSTRUCTOR FUNCTION japh_util_udt(
+--select perlish_util_udt(p_arr => &&d_arr_varchar2_udt.('one', 'two', 'three', 'four')).sort().join(', ') from dual;
+--select perlish_util_udt('one, two, three, four').sort().join(', ') from dual;
+    ,CONSTRUCTOR FUNCTION perlish_util_udt(
         p_arr    &&d_arr_varchar2_udt. DEFAULT NULL
     ) RETURN SELF AS RESULT
-    ,CONSTRUCTOR FUNCTION japh_util_udt(
+    ,CONSTRUCTOR FUNCTION perlish_util_udt(
         p_csv   VARCHAR2
     ) RETURN SELF AS RESULT
-    -- all are callable in a chain if they return japh_util_udt; otherwise must be end of chain
+    -- all are callable in a chain if they return perlish_util_udt; otherwise must be end of chain
+    -- get the object member collection
     ,MEMBER FUNCTION get RETURN &&d_arr_varchar2_udt.
+    -- get a collection element
+    ,MEMBER FUNCTION get(
+        p_i             NUMBER
+    ) RETURN VARCHAR2
     ,STATIC FUNCTION map(
         p_expr          VARCHAR2 -- not an anonymous block
         ,p_arr          &&d_arr_varchar2_udt.
@@ -41,8 +48,8 @@ CREATE OR REPLACE TYPE japh_util_udt AUTHID CURRENT_USER AS OBJECT (
     ,MEMBER FUNCTION map(
         p_expr          VARCHAR2 -- not an anonymous block
         ,p_             VARCHAR2 DEFAULT '$_' -- the string that is replaced in p_expr with array element
-        -- example: v_arr := v_japh_util_udt(v_arr).map('t.$_ = q.$_');
-    ) RETURN japh_util_udt
+        -- example: v_arr := v_perlish_util_udt(v_arr).map('t.$_ = q.$_');
+    ) RETURN perlish_util_udt
     -- combines elements of 2 arrays based on p_expr and returns a new array
     ,STATIC FUNCTION combine(
         p_expr          VARCHAR2 -- not anonymous block. $_a_ and $_b_ are replaced
@@ -56,8 +63,8 @@ CREATE OR REPLACE TYPE japh_util_udt AUTHID CURRENT_USER AS OBJECT (
         ,p_arr_b        &&d_arr_varchar2_udt.
         ,p_a            VARCHAR2 DEFAULT '$_a_'
         ,p_b            VARCHAR2 DEFAULT '$_b_'
-        -- example: v_arr := v_japh_util_udt(v_arr).combine(q'['$_a_' AS $_b_]', v_second_array);
-    ) RETURN japh_util_udt
+        -- example: v_arr := v_perlish_util_udt(v_arr).combine(q'['$_a_' AS $_b_]', v_second_array);
+    ) RETURN perlish_util_udt
     -- join the elements into a string with a separator between them
     ,STATIC FUNCTION join(
         p_arr           &&d_arr_varchar2_udt.
@@ -73,7 +80,7 @@ CREATE OR REPLACE TYPE japh_util_udt AUTHID CURRENT_USER AS OBJECT (
     ) RETURN &&d_arr_varchar2_udt.
     ,MEMBER FUNCTION sort(
         p_descending    VARCHAR2 DEFAULT 'N'
-    ) RETURN japh_util_udt
+    ) RETURN perlish_util_udt
     --
     -- these are really standalone but this was a good place to stash them
     --
@@ -86,6 +93,10 @@ CREATE OR REPLACE TYPE japh_util_udt AUTHID CURRENT_USER AS OBJECT (
 	    ,p_keep_nulls   VARCHAR2    DEFAULT 'N'
 	    ,p_strip_dquote VARCHAR2    DEFAULT 'Y' -- also unquotes \" and "" pairs within the field to just "
 	) RETURN &&d_arr_varchar2_udt. DETERMINISTIC
+
+    ,STATIC FUNCTION split_clob_to_lines(p_clob CLOB)
+    RETURN &&d_arr_varchar2_udt. DETERMINISTIC
+
 );
 /
 show errors

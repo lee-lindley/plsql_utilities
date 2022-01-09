@@ -19,20 +19,18 @@ define d_arr_arr_clob_udt="arr_arr_clob_udt"
 prompt app_types/install_app_types.sql
 @@app_types/install_app_types.sql
 --
--- japh_util_udt requires arr_varchar2_udt or your version of same
+-- perlish_util_udt requires arr_varchar2_udt or your version of same
 --
-define char_collection_type="arr_varchar2_udt"
---
-define subdir=japh_util
-prompt calling &&subdir/install_japh_util.sql
-@&&subdir/install_japh_util.sql
+define subdir=perlish_util
+prompt calling &&subdir/install_perlish_util.sql
+@&&subdir/install_perlish_util.sql
 --
 -- csv_to_table_pkg requires arr_varchar2_udt or you can use your own version
--- setting define char_collection_type
 --
-define subdir=csv_to_table 
-prompt calling &&subdir/install_csv_to_table.sql
-@&&subdir/install_csv_to_table.sql
+/* uncomment these if you want csv_to_table */
+--define subdir=csv_to_table 
+--prompt calling &&subdir/install_csv_to_table.sql
+--@&&subdir/install_csv_to_table.sql
 --
 define subdir=app_csv_pkg
 prompt calling &&subdir/install_app_csv_pkg.sql
@@ -61,7 +59,7 @@ define subdir=as_zip
 prompt calling &&subdir/install_as_zip.sql
 @&&subdir/install_as_zip.sql
 --
--- requires as_zip, japh_util_udt (for split_csv), app_lob 
+-- requires as_zip, perlish_util_udt (for split_csv), app_lob 
 -- and arr_varchar2_udt 
 --
 define subdir=app_zip

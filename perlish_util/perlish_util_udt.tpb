@@ -1,4 +1,4 @@
-CREATE OR REPLACE TYPE BODY japh_util_udt AS 
+CREATE OR REPLACE TYPE BODY perlish_util_udt AS 
 	/*
 	MIT License
 	
@@ -23,7 +23,7 @@ CREATE OR REPLACE TYPE BODY japh_util_udt AS
 	SOFTWARE.
 	*/
 
-    CONSTRUCTOR FUNCTION japh_util_udt(
+    CONSTRUCTOR FUNCTION perlish_util_udt(
         p_arr    &&d_arr_varchar2_udt. DEFAULT NULL
     ) RETURN SELF AS RESULT
     IS
@@ -34,12 +34,12 @@ CREATE OR REPLACE TYPE BODY japh_util_udt AS
         -- the default it is uninitialized and NULL arr member
         RETURN;
     END;
-    CONSTRUCTOR FUNCTION japh_util_udt(
+    CONSTRUCTOR FUNCTION perlish_util_udt(
         p_csv   VARCHAR2
     ) RETURN SELF AS RESULT
     IS
     BEGIN
-        arr := japh_util_udt.split_csv(p_csv);
+        arr := perlish_util_udt.split_csv(p_csv);
         RETURN;
     END;
     -- all are callable in a chain
@@ -49,12 +49,20 @@ CREATE OR REPLACE TYPE BODY japh_util_udt AS
     BEGIN
         RETURN arr;
     END;
+    -- get a collection element
+    MEMBER FUNCTION get(
+        p_i             NUMBER
+    ) RETURN VARCHAR2
+    IS
+    BEGIN
+        RETURN arr(p_i); -- if you ask for one we do not have, the collection object will puke
+    END;
 
     STATIC FUNCTION map(
         p_expr          VARCHAR2 -- not an anonymous block
         ,p_arr          &&d_arr_varchar2_udt.
         ,p_             VARCHAR2 DEFAULT '$_' -- the string that is replaced in p_expr with array element
-        -- example: v_arr := v_japh_util_udt(v_arr).map('t.$_ = q.$_');
+        -- example: v_arr := v_perlish_util_udt(v_arr).map('t.$_ = q.$_');
     ) RETURN &&d_arr_varchar2_udt.
     IS
         v_arr &&d_arr_varchar2_udt.;
@@ -74,11 +82,11 @@ CREATE OR REPLACE TYPE BODY japh_util_udt AS
     MEMBER FUNCTION map(
         p_expr          VARCHAR2 -- not an anonymous block
         ,p_             VARCHAR2 DEFAULT '$_' -- the string that is replaced in p_expr with array element
-        -- example: v_arr := v_japh_util_udt(v_arr).map('t.$_ = q.$_');
-    ) RETURN japh_util_udt
+        -- example: v_arr := v_perlish_util_udt(v_arr).map('t.$_ = q.$_');
+    ) RETURN perlish_util_udt
     IS
     BEGIN
-        RETURN japh_util_udt( p_arr => japh_util_udt.map(p_arr => arr, p_expr => p_expr, p_ => p_) );
+        RETURN perlish_util_udt( p_arr => perlish_util_udt.map(p_arr => arr, p_expr => p_expr, p_ => p_) );
     END;
 
     STATIC FUNCTION combine(
@@ -95,7 +103,7 @@ CREATE OR REPLACE TYPE BODY japh_util_udt AS
             OR (p_arr_b IS NULL AND p_arr_b IS NOT NULL)
             OR (p_arr_a.COUNT() != p_arr_b.COUNT())
         THEN
-            raise_application_error(-20111,'japh_util_udt.combine input arrays were not same size');
+            raise_application_error(-20111,'perlish_util_udt.combine input arrays were not same size');
         END IF;
         IF p_arr_a IS NOT NULL
         THEN
@@ -113,10 +121,10 @@ CREATE OR REPLACE TYPE BODY japh_util_udt AS
         ,p_arr_b        &&d_arr_varchar2_udt.
         ,p_a            VARCHAR2 DEFAULT '$_a_'
         ,p_b            VARCHAR2 DEFAULT '$_b_'
-    ) RETURN japh_util_udt
+    ) RETURN perlish_util_udt
     IS
     BEGIN
-        RETURN japh_util_udt(p_arr => japh_util_udt.combine(
+        RETURN perlish_util_udt(p_arr => perlish_util_udt.combine(
                                         p_expr      => p_expr
                                         , p_arr_a   => arr
                                         , p_arr_b   => p_arr_b
@@ -147,7 +155,7 @@ CREATE OR REPLACE TYPE BODY japh_util_udt AS
     ) RETURN VARCHAR2
     IS
     BEGIN
-        RETURN japh_util_udt.join(arr, p_separator); -- can be null
+        RETURN perlish_util_udt.join(arr, p_separator); -- can be null
     END;
 
     STATIC FUNCTION sort(
@@ -172,10 +180,10 @@ CREATE OR REPLACE TYPE BODY japh_util_udt AS
     END;
     MEMBER FUNCTION sort(
         p_descending    VARCHAR2 DEFAULT 'N'
-    ) RETURN japh_util_udt
+    ) RETURN perlish_util_udt
     IS
     BEGIN
-        RETURN japh_util_udt( p_arr => japh_util_udt.sort(p_arr => arr, p_descending => p_descending) );
+        RETURN perlish_util_udt( p_arr => perlish_util_udt.sort(p_arr => arr, p_descending => p_descending) );
     END;
     --
 
@@ -213,6 +221,67 @@ CREATE OR REPLACE TYPE BODY japh_util_udt AS
 	    ;
 	END; -- transform_perl_regexp
 
+        --
+    -- split a clob into a row for each line.
+    -- Handle case where a "line" can have embedded LF chars per RFC for CSV format
+    -- Throw out completely blank lines
+    --
+    STATIC FUNCTION split_clob_to_lines(p_clob CLOB)
+    RETURN &&d_arr_varchar2_udt. 
+    DETERMINISTIC
+    IS
+        v_cnt           BINARY_INTEGER;
+        v_row           VARCHAR2(4000);
+        --v_rows          sys.ku$_vcnt := sys.ku$_vcnt();
+        v_rows          &&d_arr_varchar2_udt. := &&d_arr_varchar2_udt.();
+
+        v_rows_regexp   VARCHAR2(1024) := transform_perl_regexp('
+(                               # capture in \1
+  (                             # going to group 0 or more of these things
+    [^"\n\\]+                   # any number of chars that are not dquote, backwack or newline
+    |
+    (                           # just grouping for repeat
+        \\ \n                   # or a backwacked \n but put space between them so gets transformed correctly
+    )+                          # one or more protected newlines (as if they were in dquoted string)
+    |
+    (                           # just grouping for repeat
+        \\"                     # or a backwacked "
+    )+                          # one or more protected "
+    |
+    "                           # double quoted string start
+        (                       # just grouping. Order of the next set of things matters. Longest first
+            ""                  # literal "" which is a quoted dquoute within dquote string
+            |
+            \\"                 # a backwacked dquote 
+            |
+            [^"]                # any single character not the above two multi-char constructs, or a dquote
+                                #     Important! This can be embedded newlines too!
+        )*                      # zero or more of those chars or constructs 
+    "                           # closing dquote
+    |                           
+    \\                          # or a backwack, but do this last as it is the smallest and we do not want
+                                #   to consume the backwack before a newline or a dquote
+  )*                            # zero or more strings on a single "line" that could include newline in dquotes
+                                # or even a backwacked newline
+)                               # end capture \1
+(                               # just grouping 
+    $|\n                        # require match newline or string end 
+)                               # close grouping
+');
+    BEGIN
+        v_cnt := REGEXP_COUNT(p_clob, v_rows_regexp) - 1; -- we get an extra match on final $
+        FOR i IN 1..v_cnt
+        LOOP
+            v_row := REGEXP_SUBSTR(p_clob, v_rows_regexp, 1, i, NULL, 1);
+            IF v_row IS NOT NULL THEN
+                v_rows.EXTEND;
+                v_rows(v_rows.COUNT) := v_row;
+            END IF;
+        END LOOP;
+        RETURN v_rows;
+    END --split_clob_to_lines
+    ;
+
 	STATIC FUNCTION split_csv (
 	     p_s            VARCHAR2
 	    ,p_separator    VARCHAR2    DEFAULT ','
@@ -246,7 +315,7 @@ CREATE OR REPLACE TYPE BODY japh_util_udt AS
 	        v_s             VARCHAR2(256) 
 	            := '123.55,,abcdef,an excel unquoted string with a backwacked comma\, plus more in one field,"a true csv double quoted field with embedded "" and trailing space "';
 	    BEGIN
-	        v_arr_varchar2 := japh_util_udt.split_csv(v_s);
+	        v_arr_varchar2 := perlish_util_udt.split_csv(v_s);
 	        FOR i IN v_arr_varchar2.FIRST..v_arr_varchar2.LAST
 	        LOOP
 	            DBMS_OUTPUT.put_line(v_arr_varchar2(i));
@@ -255,7 +324,7 @@ CREATE OR REPLACE TYPE BODY japh_util_udt AS
 	    --
 	    -- or --
 	    --
-	    SELECT * FROM TABLE(japh_util_udt.split_csv('123.55,,abcdef,an excel unquoted string with a backwacked comma\, plus more in one field,"a true csv double quoted field with embedded "" and trailing space "'
+	    SELECT * FROM TABLE(perlish_util_udt.split_csv('123.55,,abcdef,an excel unquoted string with a backwacked comma\, plus more in one field,"a true csv double quoted field with embedded "" and trailing space "'
 	                                    ,p_keep_nulls => 'Y', p_strip_dquote => 'N'
 	                                    )
 	                       );
@@ -430,29 +499,29 @@ CREATE OR REPLACE TYPE BODY japh_util_udt AS
 	        RETURN v_arr;
 	/*
 	Unit tests:
-	 select * from TABLE(japh_util_udt.split_csv('"""whatev,er"" and\"", test 2,, abc,'
+	 select * from TABLE(perlish_util_udt.split_csv('"""whatev,er"" and\"", test 2,, abc,'
 	                                      ,p_keep_nulls => 'N', p_strip_dquote => 'Y'
 	                                   )
 	                     );
 	
 	 -- see impact of trailing comma on number of fields
-	 select * from TABLE(japh_util_udt.split_csv('"""whatev,er"" and\"", , test 2,, test3 ,abc,'
+	 select * from TABLE(perlish_util_udt.split_csv('"""whatev,er"" and\"", , test 2,, test3 ,abc,'
 	                                      ,p_keep_nulls => 'Y', p_strip_dquote => 'N'
 	                                   )
 	                     );
 	
 	 -- see impact of NO trailing comma on number of fields
-	 select * from TABLE(japh_util_udt.split_csv('"""whatev,er"" and\"", , test 2,, test3 ,abc'
+	 select * from TABLE(perlish_util_udt.split_csv('"""whatev,er"" and\"", , test 2,, test3 ,abc'
 	                                      ,p_keep_nulls => 'Y', p_strip_dquote => 'N'
 	                                   )
 	                     );
 	
 	 -- backwacked commas in non quoted strings plus trailing ,
-	 select * from TABLE(japh_util_udt.split_csv('"""whatev,e\"r"" and\"", , te\,st 2,, test3\, ,abc,'
+	 select * from TABLE(perlish_util_udt.split_csv('"""whatev,e\"r"" and\"", , te\,st 2,, test3\, ,abc,'
 	                                      ,p_keep_nulls => 'Y', p_strip_dquote => 'N'
 	                                   )
 	                     );
-	 SELECT * FROM TABLE(japh_util_udt.split_csv('123.55,,abcdef,an excel unquoted string with a backwacked comma\, plus more in one field,"a true csv double quoted field with embedded "" and trailing space "'
+	 SELECT * FROM TABLE(perlish_util_udt.split_csv('123.55,,abcdef,an excel unquoted string with a backwacked comma\, plus more in one field,"a true csv double quoted field with embedded "" and trailing space "'
 	                                 )
 	                    );
 	*/
