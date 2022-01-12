@@ -368,7 +368,7 @@ User Defined Type Table of INTEGER required for some of these utilities.
 ## perlish_util_udt
 
 It isn't Perl, but it makes some Perlish things a bit easier in PL/SQL. We also get
-handy methods for splitting Comma Separated Value (CSV) text up into lines and fields,
+handy methods for splitting Comma Separated Value (CSV) text into lines and fields,
 which you can use independently of the Perlish methods.
 
 There is valid argument
@@ -506,7 +506,9 @@ CREATE OR REPLACE TYPE perlish_util_udt AUTHID CURRENT_USER AS OBJECT (
 You can call it with no argument, a string that will be split on commas, or an *arr_varchar2_udt* collection.
 For reasons I have not figured out, if you call it with the *arr_varchar2_udt* collection
 you must specify the named argument with the 
+
     p_arr =>
+
 syntax rather than simply positional. See the Example 1 above.
 
 ### join
@@ -632,7 +634,7 @@ appropriately including the quoting of " within the field.
 
 We comply with RFC4180 on CSV format (for what it is worth) while also 
 handling the mentioned common variants like backwacked quotes and 
-backwacked separators in non-double quoted fields that Excel produces.
+backwacked separators in non-double quoted fields.
 
 See https://www.loc.gov/preservation/digital/formats/fdd/fdd000323.shtml
 
@@ -842,8 +844,8 @@ Result exported from sqldeveloper as CSV:
 ## app_csv_pkg
 
 > NOTE: Requires Oracle version 18c or higher as it depends on a Polymorphic Table Function. 
-I have another repository named *app_csv_udt*
-that should run on Oracle 10g or better, that has a bit more options, and an Object Oriented
+I have another github repository [app_csv_udt](https://github.com/lee-lindley/app_csv) 
+that should run on Oracle 10g or better, has a few more options, and an Object Oriented
 interface I prefer. I've found many people are less comfortable with the Object Oriented interface.
 This is also simpler in many respects.
 
@@ -859,28 +861,76 @@ Given a Table or Common Table Expression (CTE) (aka WITH clause), convert the in
 data into Comma Separated Value rows. There are also methods for generating a CLOB of
 all of the rows and for writing to a file.
 
-The CSV that is generated complies with the RFC for comma separated values.
+The CSV rows generated comply 
+with RFC4180 (See https://www.loc.gov/preservation/digital/formats/fdd/fdd000323.shtml)
+and can be tailored for Excel.
 
-Package *app_csv_pkg* specification:
+Package *app_csv_pkg* specification and manual page:
+
+### ptf
 
 ```sql
     --
     -- All non numeric fields will be surrounded with double quotes. Any double quotes in the
-    -- data will be backwacked to protect them. Newlines in the data are passed through as is
+    -- data will be doubled up to conform to the RFC. Newlines in the data are passed through as is
     -- which might cause issues for some CSV parsers.
     FUNCTION ptf(
-        p_tab                   TABLE
-        ,p_header_row           VARCHAR2 := 'Y'
-        ,p_separator            VARCHAR2 := ','
+        p_tab                           TABLE
+        ,p_header_row                   VARCHAR2 := 'Y'
+        ,p_separator                    VARCHAR2 := ','
+        --
+        -- if p_protect_numstr_from_excel==Y and a varchar field looks like a number, 
+        -- i.e. matches '^(\s*[+-]?(\d+[.]?\d*)|([.]\d+))$' then output '="'||field||'"'
+        -- which gets wrapped with dquotes and doubled up inside quotes to "=""00123"""
+        -- which makes Excel treat it like a string no matter that it wants to treat any strings that
+        -- look like numbers as numbers.
+        -- It is gross, but that is what you have to do if you have text fields with leading zeros
+        -- or otherwise want to protect strings that look like numbers from Excel auto recognition.
+        --
+        ,p_protect_numstr_from_excel    VARCHAR2 := 'N'
         -- you can set these to NULL if you want the default TO_CHAR conversions
-        ,p_date_format          VARCHAR2 := NULL
-        ,p_interval_format      VARCHAR2 := NULL
-    ) RETURN TABLE
-    PIPELINED TABLE POLYMORPHIC USING app_csv_pkg
+        ,p_date_format                  VARCHAR2 := NULL
+        ,p_interval_format              VARCHAR2 := NULL
+    ) RETURN TABLE PIPELINED 
+        TABLE -- so can ORDER the input
+        --ROW 
+        POLYMORPHIC USING app_csv_pkg
     ;
+```
+Parameters to *ptf* all have default values except for *p_tab*. Note that paramater values to a Polymorphic Table Function 
+may not be bind variables. The reason is that the *describe* procedure is called during the hard parse phase
+and bind variable values are not available when it is called. 
+If you use bind variables, then *describe* receives all NULL parameter values. *describe* (and by extension *ptf*)
+traps for *p_header_row* being NULL and raises the error 
 
+> ORA20399 - app_csv_pkg.ptf was passed a NULL value for p_header_row which must be 'Y' or 'N'. You may have attempted to use a bind variable which does not work for Polymorphic Table Function parameter values.
+
+- *p_tab*
+    - The name of a schema level Table, View or Materialized View, or more likely, a Common Table Expression (CTE) (aka WITH clause).
+- *p_header_row*
+    - If 'Y' or 'y' (default), then a header row will be produced with the column or column alias names. The names will be double quoted. NULL is not a permitted value and will raise an exception.
+- *p_separator*
+    - The default value of ',' can be overriden. Common override separator characters are tab (CHR(9)), '|' and ';'.
+- *p_protect_numstr_from_excel*
+    - If 'Y' or 'y', then VARCHAR2 fields are examined with the regular expression
+        - ^(\s*[+-]?(\d+[.]?\d\*)|([.]\d+))$
+        If it matches, then we know that Excel will attempt to treat it as a number and apply an Excel format
+        to the displayed value. This has an unfortunate impact of stripping leading zeros, displaying in scientific notation,
+        or otherwise butchering the display of our text data. To make Excel treat it as a text value regardless,
+        the accepted solution for string '000123' is to apply magic pixie dust in a CSV file with "=""000123""".
+- *p_date_format*
+    - IF NULL, then Oracle converts using NLS_DATE_FORMAT. You could alter your session and set NLS_DATE_FORMAT
+    but that could impact other outputs and inputs depending on the default conversion. If instead you provide
+    a conversion format argument, it is handed to TO_CHAR for converting any date value columns.
+- *p_interval_format*
+    - If NULL, then Oracle uses the default conversion. If you provide a conversion format argument, it is
+    handed to TO_CHAR for converting any Interval columns.
+
+### get_ptf_query_string
+
+```sql
     --
-    -- a) If your sql contains the string app_csv_pkg.ptf (case insensitive match), then it is returned as is. and your 
+    -- a) If it contains the string app_csv_pkg.ptf (case insensitive match), then it is returned as is. and your 
     --      other arguments are ignored because you should have used them directly in the PTF call.
     -- b) If it does not start with the case insensitive pattern '\s*WITH\s', then we wrap it with a 'WITH R AS (' and
     --      a ') SELECT * FROM app_csv_pkg.ptf(R, __your_parameter_vals__)' before calling it.
@@ -890,34 +940,102 @@ Package *app_csv_pkg* specification:
     -- Best thing to do is run your query through the function and see what you get. It has worked in my test cases.
     --
     FUNCTION get_ptf_query_string(
-        p_sql                   CLOB
-        ,p_header_row           VARCHAR2 := 'Y' 
-        ,p_separator            VARCHAR2 := ','
+        p_sql                           CLOB
+        ,p_header_row                   VARCHAR2 := 'Y'
+        ,p_separator                    VARCHAR2 := ','
+        -- if Y and a varchar field matches '^(\s*[+-]?(\d+[.]?\d*)|([.]\d+))$' then output '="'||field||'"'
+        ,p_protect_numstr_from_excel    VARCHAR2 := 'N'
         -- you can set these to NULL if you want the default TO_CHAR conversions
-        ,p_date_format          VARCHAR2 := NULL
-        ,p_interval_format      VARCHAR2 := NULL
+        ,p_date_format                  VARCHAR2 := NULL
+        ,p_interval_format              VARCHAR2 := NULL
     ) RETURN CLOB
     ;
+```
 
-    --
-    -- These two functions and six procedures expect the cursor to return rows containing a single VARCHAR2 column.
-    -- Most often you will use in conjunction with a final WITH clause SELECT * from app_csv_pkg.ptf(). If you
-    -- are using the p_src(sys_refcursor) version, then it is required that your query conform or is generating
-    -- rows independently (though why you would use these methods in that case is a mystery).
-    -- If you are using the p_sql(CLOB) versions, the method will transform your SQL using get_ptf_query_string
-    -- thus wrapping your query in a call to the PTF so it can generate CSV data
-    --
+*get_ptf_query_string* is for internal use by *get_clob* and *write_file*, but it is made a public function
+so that you can see what it does to your query which might help debug any issues. *get_clob* and *write_file*
+versions that take a SQL string (CLOB) argument instead of a SYS_REFCURSOR apply this function to your query.
+
+If it determines your query is already calling the PTF, it returns it unchanged.
+
+If your query does not use a WITH clause, it wraps it in a single WITH clause named **R_app_csv_pkg_ptf**
+like so with the values from your parameters substituted as literals (bind variables not permitted for PTF calls).
+
+```sql
+    WITH R_app_csv_pkg_ptf AS (
+        ... your query ...
+    ) SELECT * FROM app_csv_pkg.ptf(
+                        p_tab => R_app_csv_pkg_ptf
+                        ,p_header_row                   => __p_header_row__
+                        ,p_separator                    => __p_separator__
+                        ,p_protect_numstr_from_excel    => __p_protect_numstr_from_excel__
+                        ,p_date_format                  => __p_date_format__
+                        ,p_interval_format              => __p_interval_format__
+                    );
+```
+If your query starts with WITH, then it has to get fancy and split your query into two parts. The last SELECT
+in your chain of WITH clauses is wrapped in **R_app_csv_pkg_ptf** the same was shown above. Example:
+```sql
+    WITH abc AS (
+        ...
+    ), xyz AS (
+        SELECT
+        ...
+        FROM abc
+    ) --<<<< Your last WITH clause closing paren
+, R_app_csv_pkg_ptf AS (
+        /* your final SELECT */
+    ) SELECT * FROM app_csv_pkg.ptf(
+                        p_tab => R_app_csv_pkg_ptf
+                        ,p_header_row                   => __p_header_row__
+                        ,p_separator                    => __p_separator__
+                        ,p_protect_numstr_from_excel    => __p_protect_numstr_from_excel__
+                        ,p_date_format                  => __p_date_format__
+                        ,p_interval_format              => __p_interval_format__
+                    );
+```
+Using the PTF directly in your query and passing a SYS_REFCURSOR to *get_clob* or *write_file* is the best way to use
+this tool. A SYS_REFCURSOR allows you to use bind variables (except for parameters to *ptf*). 
+If you take advantage of the variants that accept 
+a SQL string parameter, you do not have to know as much about how the PTF works and it might be a better plug and play
+replacement of something you are currently using, but it is a hack I'm not especially proud of.
+
+### get_clob [a]
+
+```sql
     PROCEDURE get_clob(
         p_src                   SYS_REFCURSOR
         ,p_clob             OUT CLOB
         ,p_rec_count        OUT NUMBER -- includes header row
         ,p_lf_only              VARCHAR2 := 'Y'
     );
+```
+- *p_src*
+    - The open SYS_REFCURSOR you pass is expected to have already called *app_csv_pkg.ptf*. It does
+    not verify that, but it will puke if the query is not returning rows consisting of a single VARCHAR2 column.
+- *p_clob*
+    - The Out parameter points to a CLOB variable the CSV "file" content can be constructed in. 
+    Lines are separated with LineFeed (CHR(10)) by default.
+- *p_rec_count*
+    - The number of lines put into the CLOB is returned in this OUT parameter. If a header row is produced, it is counted. If your query returns no rows, you still get a header row if it was requested and *p_rec_count* will be 1.
+- *p_lf_only*
+    - If 'Y' or 'y' (default), then lines are separated with LineFeed (CHR(10)); otherwise they are separated by Carriage Return Line Feed (CHR(13)||CHR(10)). No modern windows programs require Carriage Return; however, I have had a requirement from a vendor that a file be separated with CR/LF.
+
+### get_clob [b]
+
+```sql
     FUNCTION get_clob(
         p_src                   SYS_REFCURSOR
         ,p_lf_only              VARCHAR2 := 'Y'
     ) RETURN CLOB
     ;
+```
+This function version is the same as the preceding procedure version except you have no way to get the number of rows
+produced.
+
+### get_clob [c]
+
+```sql
     PROCEDURE get_clob(
         p_sql                   CLOB
         ,p_clob             OUT CLOB
@@ -930,6 +1048,19 @@ Package *app_csv_pkg* specification:
         ,p_date_format          VARCHAR2 := NULL
         ,p_interval_format      VARCHAR2 := NULL
     );
+```
+The first four arguments mimic the call of the first *get_clob* procedure shown above except that
+we are passed a SQL string instead of a SYS_REFCURSOR. Because we are going to build the SYS_REFCURSOR
+for you, you also give us values for the optional arguments to *app_csv_pkg.ptf*. We call *get_ptf_query_string*
+with *p_sql* and the values of those parameters
+which are then encoded in the final sql string that is opened as a cursor. 
+Because this is done before the
+PTF is parsed, you can use bind variables for the parameters to *get_clob*. The literal values are
+encoded in the SQL that is opened as a SYS_REFCURSOR.
+
+### get_clob [d]
+
+```sql
     FUNCTION get_clob(
         p_sql                   CLOB
         ,p_lf_only              VARCHAR2 := 'Y'
@@ -941,17 +1072,45 @@ Package *app_csv_pkg* specification:
         ,p_interval_format      VARCHAR2 := NULL
     ) RETURN CLOB
     ;
+```
+This function version is the same as the preceding procedure version except you have no way to get the number of rows
+produced.
+
+### write_file [a]
+
+```sql
     PROCEDURE write_file(
          p_dir                  VARCHAR2
         ,p_file_name            VARCHAR2
         ,p_src                  SYS_REFCURSOR
         ,p_rec_cnt          OUT NUMBER -- includes header row
     );
+```
+- *p_dir*
+    - Name of an Oracle directory object to which you can write.
+- *p_file_name*
+    - Name of file to create or replace in *p_dir*
+- *p_src*
+    - The open SYS_REFCURSOR you pass is expected to have already called *app_csv_pkg.ptf*. It does
+    not verify that, but it will puke if the query is not returning rows consisting of a single VARCHAR2 column.
+- *p_rec_count*
+    - The number of lines written to the file. If a header row is produced, it is counted. If your query returns no rows, you still get a header row if it was requested and *p_rec_count* will be 1.
+
+### write_file [b]
+
+```sql
     PROCEDURE write_file(
          p_dir                  VARCHAR2
         ,p_file_name            VARCHAR2
         ,p_src                  SYS_REFCURSOR
     );
+```
+This version is the same as the preceding procedure version except you have no way to get the number of rows
+produced.
+
+### write_file [c]
+
+```sql
     PROCEDURE write_file(
          p_dir                  VARCHAR2
         ,p_file_name            VARCHAR2
@@ -964,6 +1123,20 @@ Package *app_csv_pkg* specification:
         ,p_date_format          VARCHAR2 := NULL
         ,p_interval_format      VARCHAR2 := NULL
     );
+```
+
+The first four arguments mimic the call of the first *write_file* procedure shown above except that
+we are passed a SQL string instead of a SYS_REFCURSOR. Because we are going to build the SYS_REFCURSOR
+for you, you also give us values for the optional arguments to *app_csv_pkg.ptf*. We call *get_ptf_query_string*
+with *p_sql* and the values of those parameters
+which are then encoded in the final sql string that is opened as a cursor. 
+Because this is done before the
+PTF is parsed, you can use bind variables for the parameters to *write_file*. The literal values are
+encoded in the SQL that is opened as a SYS_REFCURSOR.
+
+### write_file [d]
+
+```sql
     PROCEDURE write_file(
          p_dir                  VARCHAR2
         ,p_file_name            VARCHAR2
@@ -977,7 +1150,34 @@ Package *app_csv_pkg* specification:
     );
 
 ```
-Example 1:
+This version is the same as the preceding procedure version except you have no way to get the number of rows
+produced.
+
+### Example 0:
+
+```sql
+SELECT *
+FROM app_csv_pkg.ptf(hr.employees ORDER BY (last_name, first_name, hire_date)
+                        , p_date_format => 'YYYYMMDD'
+                    )
+WHERE rownum <= 10
+;
+```
+Output (notice how the header row counts as one of the 10 rows! It is just a data record in the resultset.):
+
+    "EMPLOYEE_ID","FIRST_NAME","LAST_NAME","EMAIL","PHONE_NUMBER","HIRE_DATE","JOB_ID","SALARY","COMMISSION_PCT","MANAGER_ID","DEPARTMENT_ID"
+    174,"Ellen","Abel","EABEL","011.44.1644.429267","20040511","SA_REP",11000,.3,149,80
+    166,"Sundar","Ande","SANDE","011.44.1346.629268","20080324","SA_REP",6400,.1,147,80
+    130,"Mozhe","Atkinson","MATKINSO","650.124.6234","20051030","ST_CLERK",2800,,121,50
+    105,"David","Austin","DAUSTIN","590.423.4569","20050625","IT_PROG",4800,,103,60
+    204,"Hermann","Baer","HBAER","515.123.8888","20020607","PR_REP",10000,,101,70
+    116,"Shelli","Baida","SBAIDA","515.127.4563","20051224","PU_CLERK",2900,,114,30
+    167,"Amit","Banda","ABANDA","011.44.1346.729268","20080421","SA_REP",6200,.1,147,80
+    172,"Elizabeth","Bates","EBATES","011.44.1343.529268","20070324","SA_REP",7300,.15,148,80
+    192,"Sarah","Bell","SBELL","650.501.1876","20040204","SH_CLERK",4000,,123,50
+
+### Example 1:
+
 ```sql
 WITH R AS (
     SELECT last_name||', '||first_name AS "Employee Name", hire_date AS "Hire Date", employee_id AS "Employee ID"
@@ -991,7 +1191,7 @@ WHERE rownum <= 10
 ;
 ```
 
-Output (notice how the header row counts as one of the 10 rows! It is just a data record in the resultset.):
+Output:
 
     "Employee Name","Hire Date","Employee ID"
     "Abel, Ellen","20040511",174
@@ -1004,7 +1204,7 @@ Output (notice how the header row counts as one of the 10 rows! It is just a dat
     "Bates, Elizabeth","20070324",172
     "Bell, Sarah","20040204",192
 
-Example 2 (YOU call the PTF yourself in your query):
+### Example 2
 
 ```sql
 SELECT app_csv_pkg.get_clob(q'[
@@ -1021,7 +1221,8 @@ SELECT app_csv_pkg.get_clob(q'[
     ) FROM dual;
 ```
 
-Output is a single CLOB value that you could attach to an email or insert into a table: 
+Output is a single CLOB value that you could attach to an email or insert into a table. You would normally
+be calling it inside a PL/SQL program.
 
     "Abel, Ellen"|"05/11/2004"|174
     "Ande, Sundar"|"03/24/2008"|166
@@ -1035,7 +1236,7 @@ Output is a single CLOB value that you could attach to an email or insert into a
     "Bernstein, David"|"03/24/2005"|151
 
 
-Example 3 (You depend on get_clob to add the PTF call to your query):
+### Example 3 
 
 ```sql
 SELECT app_csv_pkg.get_clob(
@@ -1052,7 +1253,7 @@ SELECT app_csv_pkg.get_clob(
 FROM dual;
 ```
 
-Example 4 (notice the '="' trick to make Excel treat the number as a string):
+### Example 4 (notice the '="' trick to make Excel treat the number as a string):
 
 ```sql
 SELECT 
@@ -1111,6 +1312,40 @@ exponents.
     "Bell, Sarah","02/04/2004","=""192"""
     "Bernstein, David","03/24/2005","=""151"""
 
+### Example 5 letting the PTF apply the '="' trick
+
+```sql
+SELECT 
+       --app_csv_pkg.get_ptf_query_string(
+       app_csv_pkg.get_clob(
+        p_sql => q'[
+            WITH a AS (
+                SELECT last_name||', '||first_name AS "Employee Name", hire_date AS "Hire Date"
+                    ,TO_CHAR(employee_id, '099999999999') AS "Employee ID"
+                FROM hr.employees
+                ORDER BY last_name, first_name
+            ) SELECT *
+            FROM a
+            WHERE rownum <= 10]'
+        , p_separator => ',', p_header_row => 'Y', p_date_format => 'MM/DD/YYYY'
+        , p_protect_numstr_from_excel => 'Y'
+       ) 
+FROM dual;
+```
+Results:
+
+    "Employee Name","Hire Date","Employee ID"
+    "Abel, Ellen","05/11/2004","=""000000000174"""
+    "Ande, Sundar","03/24/2008","=""000000000166"""
+    "Atkinson, Mozhe","10/30/2005","=""000000000130"""
+    "Austin, David","06/25/2005","=""000000000105"""
+    "Baer, Hermann","06/07/2002","=""000000000204"""
+    "Baida, Shelli","12/24/2005","=""000000000116"""
+    "Banda, Amit","04/21/2008","=""000000000167"""
+    "Bates, Elizabeth","03/24/2007","=""000000000172"""
+    "Bell, Sarah","02/04/2004","=""000000000192"""
+    "Bernstein, David","03/24/2005","=""000000000151"""
+
 ### Issue with PTF and DATE Functions
 
 Beware if your query produces a calculated date value like TO_DATE('01/01/2021','MM/DD/YYYY') or SYSDATE,
@@ -1130,11 +1365,11 @@ report it in a little more helpful way, but if you are opening your own sys_refc
 and the explanation is less than helpful. This [post](https://blog.sqlora.com/en/using-subqueries-with-ptf-or-sql-macros/)
 is where I found out about the cause.
 
-I have seen articles that suggest it has been addressed in some releases at least in terms of SQL macros.
+I have seen an article that suggests it has been addressed in some releases at least in terms of SQL macros.
 The list of supported types in DBMS_TF in 20.3 has
 TYPE_EDATE listed as 184, but the query is giving type 13 and calling the PTF with that CTE
 is returning ORA-62558 exception. Maybe something about SQL macros works around it, but I haven't
-gone there yet.
+gone there yet and I may not have understood the article.
 
 ## to_zoned_decimal
 

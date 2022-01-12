@@ -24,12 +24,14 @@ SOFTWARE.
 */
 
     FUNCTION get_ptf_query_string(
-        p_sql                   CLOB
-        ,p_header_row           VARCHAR2 := 'Y' 
-        ,p_separator            VARCHAR2 := ','
+        p_sql                           CLOB
+        ,p_header_row                   VARCHAR2 := 'Y'
+        ,p_separator                    VARCHAR2 := ','
+        -- if Y and a varchar field matches '^(\s*[+-]?(\d+[.]?\d*)|([.]\d+))$', then output '="'||field||'"'
+        ,p_protect_numstr_from_excel    VARCHAR2 := 'N'
         -- you can set these to NULL if you want the default TO_CHAR conversions
-        ,p_date_format          VARCHAR2 := NULL
-        ,p_interval_format      VARCHAR2 := NULL
+        ,p_date_format                  VARCHAR2 := NULL
+        ,p_interval_format              VARCHAR2 := NULL
     ) RETURN CLOB
     IS
         v_clob                  CLOB;
@@ -52,16 +54,19 @@ SOFTWARE.
         END IF;
         v_clob := v_clob||q'[
     SELECT * FROM app_csv_pkg.ptf(
-                        p_tab           => R_app_csv_pkg_ptf
-                        ,p_header_row   => ']'||p_header_row||q'['
-                        ,p_separator    => ']'||p_separator||q'['
-                        ,p_date_format  => ]'
+                        p_tab                           => R_app_csv_pkg_ptf
+                        ,p_header_row                   => ']'||p_header_row||q'['
+                        ,p_separator                    => ']'||p_separator||q'['
+                        ,p_protect_numstr_from_excel    => ]'
+                || CASE WHEN p_protect_numstr_from_excel IS NULL THEN 'NULL' ELSE q'[']'||p_protect_numstr_from_excel||q'[']' END
+                || q'[
+                        ,p_date_format                  => ]'
                 || CASE WHEN p_date_format IS NULL THEN 'NULL' ELSE q'[']'||p_date_format||q'[']' END
-                || '
-                        ,p_interval_format => '
+                || q'[
+                        ,p_interval_format              => ]'
                 || CASE WHEN p_interval_format IS NULL THEN 'NULL' ELSE q'[']'||p_interval_format||q'[']' END
-                ||'
-                  )';
+                ||q'[
+                  )]';
         RETURN v_clob;
     END get_ptf_query_string
     ;
@@ -101,22 +106,25 @@ SOFTWARE.
     END get_clob;
 
     PROCEDURE get_clob(
-        p_sql                   CLOB
-        ,p_clob             OUT CLOB
-        ,p_rec_count        OUT NUMBER -- includes header row
-        ,p_lf_only              VARCHAR2 := 'Y'
+        p_sql                           CLOB
+        ,p_clob                     OUT CLOB
+        ,p_rec_count                OUT NUMBER -- includes header row
+        ,p_lf_only                      VARCHAR2 := 'Y'
         -- these only matter if you have the procedure call the PTF for you by not including it in your sql
-        ,p_header_row           VARCHAR2 := 'Y' 
-        ,p_separator            VARCHAR2 := ','
+        ,p_header_row                   VARCHAR2 := 'Y'
+        ,p_separator                    VARCHAR2 := ','
+        -- if Y and a varchar field matches '^(\s*[+-]?(\d+[.]?\d*)|([.]\d+))$' then output '="'||field||'"'
+        ,p_protect_numstr_from_excel    VARCHAR2 := 'N'
         -- you can set these to NULL if you want the default TO_CHAR conversions
-        ,p_date_format          VARCHAR2 := NULL
-        ,p_interval_format      VARCHAR2 := NULL
+        ,p_date_format                  VARCHAR2 := NULL
+        ,p_interval_format              VARCHAR2 := NULL
     )
     IS
         v_sql       CLOB := get_ptf_query_string(
                                 p_sql
                                 ,p_header_row
                                 ,p_separator
+                                ,p_protect_numstr_from_excel
                                 ,p_date_format
                                 ,p_interval_format
                             );
@@ -138,27 +146,30 @@ SOFTWARE.
     END;
 
     FUNCTION get_clob(
-        p_sql                   CLOB
-        ,p_lf_only              VARCHAR2 := 'Y'
+        p_sql                           CLOB
+        ,p_lf_only                      VARCHAR2 := 'Y'
         -- these only matter if you have the procedure call the PTF for you by not including it in your sql
-        ,p_header_row           VARCHAR2 := 'Y' 
-        ,p_separator            VARCHAR2 := ','
+        ,p_header_row                   VARCHAR2 := 'Y'
+        ,p_separator                    VARCHAR2 := ','
+        -- if Y and a varchar field matches '^(\s*[+-]?(\d+[.]?\d*)|([.]\d+))$' then output '="'||field||'"'
+        ,p_protect_numstr_from_excel    VARCHAR2 := 'N'
         -- you can set these to NULL if you want the default TO_CHAR conversions
-        ,p_date_format          VARCHAR2 := NULL
-        ,p_interval_format      VARCHAR2 := NULL
+        ,p_date_format                  VARCHAR2 := NULL
+        ,p_interval_format              VARCHAR2 := NULL
     ) RETURN CLOB
     IS
         v_clob      CLOB;
         v_x         NUMBER;
     BEGIN
-        get_clob(p_sql          => p_sql
-            ,p_clob             => v_clob
-            ,p_rec_count        => v_x
-            ,p_lf_only          => p_lf_only
-            ,p_header_row       => p_header_row
-            ,p_separator        => p_separator
-            ,p_date_format      => p_date_format
-            ,p_interval_format  => p_interval_format
+        get_clob(p_sql                      => p_sql
+            ,p_clob                         => v_clob
+            ,p_rec_count                    => v_x
+            ,p_lf_only                      => p_lf_only
+            ,p_header_row                   => p_header_row
+            ,p_separator                    => p_separator
+            ,p_protect_numstr_from_excel    => p_protect_numstr_from_excel
+            ,p_date_format                  => p_date_format
+            ,p_interval_format              => p_interval_format
         );
         RETURN v_clob;
     END;
@@ -212,21 +223,24 @@ SOFTWARE.
     END write_file;
 
     PROCEDURE write_file(
-         p_dir          VARCHAR2
-        ,p_file_name    VARCHAR2
-        ,p_sql          CLOB
-        ,p_rec_cnt  OUT NUMBER -- includes header row
+         p_dir                          VARCHAR2
+        ,p_file_name                    VARCHAR2
+        ,p_sql                          CLOB
+        ,p_rec_cnt                  OUT NUMBER -- includes header row
         -- these only matter if you have the procedure call the PTF for you by not including it in your sql
-        ,p_header_row           VARCHAR2 := 'Y' 
-        ,p_separator            VARCHAR2 := ','
+        ,p_header_row                   VARCHAR2 := 'Y'
+        ,p_separator                    VARCHAR2 := ','
+        -- if Y and a varchar field matches '^(\s*[+-]?(\d+[.]?\d*)|([.]\d+))$' then output '="'||field||'"'
+        ,p_protect_numstr_from_excel    VARCHAR2 := 'N'
         -- you can set these to NULL if you want the default TO_CHAR conversions
-        ,p_date_format          VARCHAR2 := NULL
-        ,p_interval_format      VARCHAR2 := NULL
+        ,p_date_format                  VARCHAR2 := NULL
+        ,p_interval_format              VARCHAR2 := NULL
     ) IS
         v_sql       CLOB := get_ptf_query_string(
                                 p_sql
                                 ,p_header_row
                                 ,p_separator
+                                ,p_protect_numstr_from_excel
                                 ,p_date_format
                                 ,p_interval_format
                             );
@@ -254,27 +268,30 @@ SOFTWARE.
     ;
 
     PROCEDURE write_file(
-         p_dir          VARCHAR2
-        ,p_file_name    VARCHAR2
-        ,p_sql          CLOB
+         p_dir                          VARCHAR2
+        ,p_file_name                    VARCHAR2
+        ,p_sql                          CLOB
         -- these only matter if you have the procedure call the PTF for you by not including it in your sql
-        ,p_header_row           VARCHAR2 := 'Y' 
-        ,p_separator            VARCHAR2 := ','
+        ,p_header_row                   VARCHAR2 := 'Y'
+        ,p_separator                    VARCHAR2 := ','
+        -- if Y and a varchar field matches '^(\s*[+-]?(\d+[.]?\d*)|([.]\d+))$' then output '="'||field||'"'
+        ,p_protect_numstr_from_excel    VARCHAR2 := 'N'
         -- you can set these to NULL if you want the default TO_CHAR conversions
-        ,p_date_format          VARCHAR2 := NULL
-        ,p_interval_format      VARCHAR2 := NULL
+        ,p_date_format                  VARCHAR2 := NULL
+        ,p_interval_format              VARCHAR2 := NULL
     ) IS
         v_x             NUMBER;
     BEGIN
         write_file(
-            p_dir           => p_dir
-            ,p_file_name    => p_file_name
-            ,p_sql          => p_sql
-            ,p_rec_cnt      => v_x
-            ,p_header_row   => p_header_row
-            ,p_separator    => p_separator
-            ,p_date_format  => p_date_format
-            ,p_interval_format  => p_interval_format
+            p_dir                           => p_dir
+            ,p_file_name                    => p_file_name
+            ,p_sql                          => p_sql
+            ,p_rec_cnt                      => v_x
+            ,p_header_row                   => p_header_row
+            ,p_separator                    => p_separator
+            ,p_protect_numstr_from_excel    => p_protect_numstr_from_excel
+            ,p_date_format                  => p_date_format
+            ,p_interval_format              => p_interval_format
         );
     END write_file
     ;
@@ -285,16 +302,23 @@ SOFTWARE.
     -- Only the SQL engine calls them.
     -- 
     FUNCTION describe(
-        p_tab IN OUT            DBMS_TF.TABLE_T
-        ,p_header_row           VARCHAR2 := 'Y'
-        ,p_separator            VARCHAR2 := ','
+        p_tab IN OUT                    DBMS_TF.TABLE_T
+        ,p_header_row                   VARCHAR2 := 'Y'
+        ,p_separator                    VARCHAR2 := ','
+        -- if Y and a varchar field matches '^(\s*[+-]?(\d+[.]?\d*)|([.]\d+))$' then output '="'||field||'"'
+        ,p_protect_numstr_from_excel    VARCHAR2 := 'N'
         -- you can set these to NULL if you want the default TO_CHAR conversions
-        ,p_date_format          VARCHAR2 := NULL
-        ,p_interval_format      VARCHAR2 := NULL
+        ,p_date_format                  VARCHAR2 := NULL
+        ,p_interval_format              VARCHAR2 := NULL
     ) RETURN DBMS_TF.DESCRIBE_T
     AS
-        v_new_cols  DBMS_TF.columns_new_t;
+        v_new_cols              DBMS_TF.columns_new_t;
+        bad_header_row_param    EXCEPTION;
+        pragma EXCEPTION_INIT(bad_header_row_param, -20399);
     BEGIN
+        IF p_header_row IS NULL THEN
+            raise_application_error(-20399, q'[app_csv_pkg.ptf was passed a NULL value for p_header_row which must be 'Y' or 'N'. You may have attempted to use a bind variable which does not work for Polymorphic Table Function parameter values.]');
+        END IF;
         -- stop all input columns from being in the output
         FOR i IN 1..p_tab.column.COUNT()
         LOOP
@@ -313,11 +337,13 @@ SOFTWARE.
     ;
 
     PROCEDURE fetch_rows(
-         p_header_row           VARCHAR2 := 'Y'
-        ,p_separator            VARCHAR2 := ','
-        -- you can leave these NULL if you want the default TO_CHAR conversions for your session
-        ,p_date_format          VARCHAR2 := NULL
-        ,p_interval_format      VARCHAR2 := NULL
+         p_header_row                   VARCHAR2 := 'Y'
+        ,p_separator                    VARCHAR2 := ','
+        -- if Y and a varchar field matches '^(\s*[+-]?(\d+[.]?\d*)|([.]\d+))$' then output '="'||field||'"'
+        ,p_protect_numstr_from_excel    VARCHAR2 := 'N'
+        -- you can set these to NULL if you want the default TO_CHAR conversions
+        ,p_date_format                  VARCHAR2 := NULL
+        ,p_interval_format              VARCHAR2 := NULL
     ) AS
         v_env               DBMS_TF.env_t := DBMS_TF.get_env();
         v_rowset            DBMS_TF.row_set_t;  -- the input rowset of CSV rows
@@ -355,9 +381,14 @@ SOFTWARE.
                                 WHEN DBMS_TF.type_interval_ds THEN 
                                     TO_CHAR(v_rowset(p_col_index).tab_interval_ds(p_row_index), v_conv_fmts(p_col_index).f)
                             END
-                            , '"', '\\"'
-                        ) -- backwack the dquotes if any
+                            , '"', '""'
+                        ) -- double the dquotes if any
                         ||'"'
+                    WHEN p_protect_numstr_from_excel IN ('Y','y') 
+                        AND v_env.get_columns(p_col_index).type = DBMS_TF.type_varchar2
+                        AND REGEXP_LIKE(v_rowset(p_col_index).tab_varchar2(p_row_index), '^(\s*[+-]?(\d+[.]?\d*)|([.]\d+))$')
+                        THEN '"="'||TRIM(v_rowset(p_col_index).tab_varchar2(p_row_index))||'""' -- code after this will double up internal "
+                                                                                          -- giving "=""123.45""" as excel expects
                     ELSE
                         DBMS_TF.col_to_char(v_rowset(p_col_index), p_row_index)
                 END;
