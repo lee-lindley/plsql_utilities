@@ -369,9 +369,9 @@ User Defined Type Table of INTEGER required for some of these utilities.
 
 It isn't Perl, but it makes some Perlish things a bit easier in PL/SQL. We also get
 handy methods for splitting Comma Separated Value (CSV) text into lines and fields,
-which you can use independently of the Perlish methods.
+which you can use independent of the Perlish methods.
 
-There is valid argument
+> There is valid argument
 that when you are programming in a language you should use the facilities of that language, 
 and that attempting to layer the techniques of another language upon it is a bad idea. I see the logic
 and partially agree. I expect those who later must support my work that uses this utility will curse me. Yet
@@ -379,7 +379,7 @@ PL/SQL really sucks at some string and list related things. This uses valid PL/S
 to manipulate strings and lists in a way that is familiar to Perl hackers. I make the case that it isn't
 much different than what is done with the *XMLTYPE* object. YMMV.
 
-This user defined type holds an *arr_varchar2_udt* attribute which you will use when employing the following member methods;
+A *perlish_util_udt* object instance holds an *arr_varchar2_udt* attribute which you will use when employing the following member methods;
 
 - map
 - join
@@ -387,7 +387,10 @@ This user defined type holds an *arr_varchar2_udt* attribute which you will use 
 - get
 - combine
 
-It has static method *split_csv* (returns an *arr_varchar2_udt*) that 
+All member methods except *get* have static alternatives using *arr_varchar2_udt* parameters and return types so you
+are not forced to use the Object Oriented syntax.
+
+It has static method *split_csv* (returns *arr_varchar2_udt*) that 
 formerly lived as a standalone function in the plsql_utilities library as *split*.
 We have a static method *split_clob_to_lines* that returns an *arr_varchar2_udt* collection
 of "records" from what is assumed to be a CSV file. It parses for CSV syntax when splitting the lines
@@ -397,11 +400,13 @@ It also has a static method named *transform_perl_regexp* that has nothing to do
 
 Most of the member methods are chainable which is handy when you are doing a series of operations.
 
+### Examples
+
 Example 1:
 ```sql
-    select perlish_util_udt(p_arr => arr_varchar2_udt('one', 'two', 'three', 'four')).sort().join(', ') from dual;
+    SELECT perlish_util_udt(arr_varchar2_udt('one', 'two', 'three', 'four')).sort().join(', ') FROM dual;
     -- Or using split_csv version of the constructor
-    select perlish_util_udt('one, two, three, four').sort().join(', ') from dual;
+    SELECT perlish_util_udt('one, two, three, four').sort().join(', ') FROM dual;
 ```
 Output:
 
@@ -409,7 +414,7 @@ Output:
 
 Example 2:
 ```sql
-    select perlish_util_udt('id, type').map('t.$_ = q.$_').join(' AND ') from dual;
+    SELECT perlish_util_udt('id, type').map('t.$_ = q.$_').join(' AND ') FROM dual;
 ```
 Output:
 
@@ -417,23 +422,62 @@ Output:
 
 Example 3:
 ```sql
-    select perlish_util_udt('id, type').map('  t.$_ = q.$_').join(',
-    ') from dual;
+    SELECT perlish_util_udt('id, type').map('  t.$_ = q.$_').join(',') FROM dual;
 ```
 
     "  t.id = q.id,
         t.type = q.type"
 
-Notice that there are static versions of all of the methods. You do not have to create an
+There are static versions of all of the methods. You do not have to create an
 object or use the object method syntax. You can use each of them independently as if they
 were in a package named *perlish_util_udt*.
+
+Example 1(static):
+```sql
+    SELECT perlish_util_udt.join( 
+                perlish_util_udt.sort( 
+                        arr_varchar2_udt('one', 'two', 'three', 'four') 
+                ), 
+                ', ' 
+           ) 
+    FROM dual;
+    -- Or
+    SELECT perlish_util_udt.join( 
+                perlish_util_udt.sort( 
+                    perlish_util_udt.split_csv('one, two, three, four') 
+                ), ', ' 
+            ) 
+    FROM dual;
+```
+Output:
+
+    "four, one, three, two"
+
+Example 2(static):
+```sql
+    SELECT perlish_util_udt.join( 
+                perlish_util_udt.map('t.$_ = q.$_'
+                                    , arr_varchar2_udt('id', 'type')
+                )
+                , ' AND '
+           )
+    FROM dual;
+```
+Output:
+
+    "t.id = q.id AND t.type = q.type"
+
+### Type Specification
 
 ```sql
 CREATE OR REPLACE TYPE perlish_util_udt AUTHID CURRENT_USER AS OBJECT (
     arr     arr_varchar2_udt
+
+    /* default construtor Oracle provides for reee
     ,CONSTRUCTOR FUNCTION perlish_util_udt(
         p_arr    arr_varchar2_udt DEFAULT NULL
     ) RETURN SELF AS RESULT
+    */
     ,CONSTRUCTOR FUNCTION perlish_util_udt(
         p_csv   VARCHAR2
     ) RETURN SELF AS RESULT
@@ -503,19 +547,43 @@ CREATE OR REPLACE TYPE perlish_util_udt AUTHID CURRENT_USER AS OBJECT (
 ```
 ### CONSTRUCTOR perlish_util_udt
 
-You can call it with no argument, a string that will be split on commas, or an *arr_varchar2_udt* collection.
-For reasons I have not figured out, if you call it with the *arr_varchar2_udt* collection
-you must specify the named argument with the 
-
-    p_arr =>
-
-syntax rather than simply positional. See the Example 1 above.
+You can call the default constructor with an *arr_varchar2_udt* collection, or you can call
+the custom constructor that takes a VARCHAR2 parameter which will be split on commas by *split_csv*.
 
 ### join
 
 The array elements are joined together with a comma separator (or value you provide) returning a single string.
 It works pretty much the same as Perl *join*.
 
+You could do the same thing using *LISTAGG* in a SQL statement.
+
+```sql
+DECLARE
+    a1  arr_varchar2_udt := arr_varchar2_udt('abc', 'def');
+    v1  VARCHAR2(4000);
+BEGIN
+    SELECT LISTAGG(column_value,';') INTO v1 FROM TABLE(a1);
+    DBMS_OUTPUT.put_line(v1);
+END;
+```
+Output:
+
+    "abc;def"
+
+Contrast that with the following and consider you could chain additional methods if needed.
+
+```sql
+DECLARE
+    a1  arr_varchar2_udt := arr_varchar2_udt('abc', 'def');
+    v1  VARCHAR2(4000);
+BEGIN
+    v1 := perlish_util_udt(a1).join(';');
+    DBMS_OUTPUT.put_line(v1);
+    -- or --
+    v1 := perlish_util_udt.join(a1, ';');
+    DBMS_OUTPUT.put_line(v1);
+END;
+```
 ### sort
 
 I almost didn't provide this but the fact that you have to reach out to the SQL engine
@@ -523,6 +591,32 @@ to do a sort in PL/SQL is sort of annoying (you decide whether the pun is  inten
 It calls the SQL engine to sort the incoming list and returns a new
 *perlish_util_udt* object with the sorted results.
 
+The traditional way:
+
+```sql
+DECLARE
+    a1  arr_varchar2_udt := arr_varchar2_udt('abc', 'def');
+    a2  arr_varchar2_udt;
+BEGIN
+    SELECT column_value BULK COLLECT INTO a2 
+    FROM TABLE(a1)
+    ORDER BY column_value
+    ;
+END;
+```
+
+The perlish way:
+
+```sql
+DECLARE
+    a1  arr_varchar2_udt := arr_varchar2_udt('abc', 'def');
+    a2  arr_varchar2_udt;
+BEGIN
+    a2 := perlish_util_udt(a1).sort().get();
+    -- or --
+    a2 := perlish_util_udt.sort(a1);
+END;
+```
 ### map
 
 The list elements are transformed by replacing the token '$\_'
@@ -532,6 +626,25 @@ functionality. We are not doing an anonymous block or anything really fancy. We 
 not think it would be a good idea. Keep your expectations low.
 
 It returns a new *perlish_util_udt* object with the transformed elements.
+
+Note that if you are going to do both *map* and *join*, you could use *LISTAGG* in a SQL statement
+to accomplish it. 
+
+```sql
+DECLARE
+    a1  arr_varchar2_udt := arr_varchar2_udt('abc', 'def');
+    v1  VARCHAR2(4000);
+BEGIN
+    SELECT LISTAGG('This is the story of '||column_value, ' and ') INTO v1
+    FROM TABLE(a1)
+    ;
+    DBMS_OUTPUT.put_line(v1);
+
+    -- compared to the perlish way
+    v1 := perlish_util_udt(a1).map('This is the story of $_').join(' and ');
+    DBMS_OUTPUT.put_line(v1);
+END;
+```
 
 ### combine
 
@@ -552,20 +665,89 @@ the placholder strings in the arguments *p_a* and *p_b*.
 
 It returns a new *perlish_util_udt* object with the transformed/combined elements.
 
+Example:
+
+```sql
+DECLARE
+    a1  arr_varchar2_udt := arr_varchar2_udt('abc','def');
+    a2  arr_varchar2_udt := arr_varchar2_udt('xyz','uvw');
+    a3  arr_varchar2_udt;
+BEGIN
+    a3 := perlish_util_udt(a1).combine('$_a_ combines with $_b_', a2).get;
+    -- or --
+    a3 := perlish_util_udt.combine('$_a_ combines with $_b_', a1, a2);
+
+END;
+```
+
 For our example if the first element of our object array was 'abc'
 and the first element of *p_arr_b* was 'xyz' we would get
 
     'abc combines with xyz'
 
-in the first element of the returned array object.
+in the first element of the returned array object. Contrast with the SQL way to do the same thing.
 
+```sql
+DECLARE
+    a1  arr_varchar2_udt := arr_varchar2_udt('abc','def');
+    a2  arr_varchar2_udt := arr_varchar2_udt('xyz','uvw');
+    a3  arr_varchar2_udt;
+BEGIN
+    WITH a1 AS (
+        SELECT rownum AS rn1, column_value AS v1
+        FROM TABLE(a1)
+    ), a2 AS (
+        SELECT rownum AS rn2, column_value AS v2
+        FROM TABLE(a2)
+    )
+    SELECT v1||' combines with '||v2 BULK COLLECT INTO a3
+    FROM a1
+    INNER JOIN a2
+        ON rn2 = rn1
+    ORDER BY rn1
+    ;
+    FOR i IN 1..a3.COUNT
+    LOOP
+        DBMS_OUTPUT.put_line(a3(i));
+    END LOOP;
+END;
+```
+Yeah, nobody would do that.
+
+> The above depends upon an assumption that *rownum* is assigned in the order that elements
+appear in the collection. I believe that will be true based on the way it was almost certainly
+implemented; however, I cannot find comfirmation
+in the documentation and have read Tom Kyte say many times that the only way you can depend
+upon the order of rows returned by a SELECT is to use an ORDER BY. This seems safe enough though.
+Everybody does it.
+
+More realistically you would write the routine in PL/SQL.
+```sql
+DECLARE
+    a1  arr_varchar2_udt := arr_varchar2_udt('abc','def');
+    a2  arr_varchar2_udt := arr_varchar2_udt('xyz','uvw');
+    a3  arr_varchar2_udt;
+BEGIN
+    a3 := arr_varchar2_udt();
+    a3.EXTEND(a1.COUNT);
+    FOR i IN 1..a1.COUNT
+    LOOP
+        a3(i) := a1(i)||' combines with '||a2(i);
+    END LOOP;
+
+    FOR i IN 1..a3.COUNT
+    LOOP
+        DBMS_OUTPUT.put_line(a3(i));
+    END LOOP;
+END;
+```
 
 ### get
 
 The method with no arguments returns the collection from the object so you don't need to
 put your grubby paws on it directly.
 
-The method that takes a NUMBER argument returns an element of the collection. Not only does this allow us
+The override method that takes a NUMBER argument returns an element of the collection. Not only does this allow us
 to avoid accessing the member attribute directly, it allows us to get a value from the collection in SQL! See
 examples from *split_clob_to_lines*.
 

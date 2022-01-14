@@ -25,11 +25,14 @@ AS OBJECT (
 	SOFTWARE.
 */
     arr     &&d_arr_varchar2_udt.
---select perlish_util_udt(p_arr => &&d_arr_varchar2_udt.('one', 'two', 'three', 'four')).sort().join(', ') from dual;
+--select perlish_util_udt(&&d_arr_varchar2_udt.('one', 'two', 'three', 'four')).sort().join(', ') from dual;
 --select perlish_util_udt('one, two, three, four').sort().join(', ') from dual;
+    /*
+    -- this one is provided by Oracle automatically as the default constructor
     ,CONSTRUCTOR FUNCTION perlish_util_udt(
-        p_arr    &&d_arr_varchar2_udt. DEFAULT NULL
+        p_arr    &&d_arr_varchar2_udt. 
     ) RETURN SELF AS RESULT
+    */
     ,CONSTRUCTOR FUNCTION perlish_util_udt(
         p_csv   VARCHAR2
     ) RETURN SELF AS RESULT

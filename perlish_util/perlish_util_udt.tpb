@@ -23,17 +23,19 @@ CREATE OR REPLACE TYPE BODY perlish_util_udt AS
 	SOFTWARE.
 	*/
 
+    /*
+    -- this constructor is provided by Oracle by default
     CONSTRUCTOR FUNCTION perlish_util_udt(
-        p_arr    &&d_arr_varchar2_udt. DEFAULT NULL
+        p_arr    &&d_arr_varchar2_udt.
     ) RETURN SELF AS RESULT
     IS
     BEGIN
         IF p_arr IS NOT NULL THEN
             arr := p_arr;
         END IF;
-        -- the default it is uninitialized and NULL arr member
         RETURN;
     END;
+    */
     CONSTRUCTOR FUNCTION perlish_util_udt(
         p_csv   VARCHAR2
     ) RETURN SELF AS RESULT
@@ -86,7 +88,7 @@ CREATE OR REPLACE TYPE BODY perlish_util_udt AS
     ) RETURN perlish_util_udt
     IS
     BEGIN
-        RETURN perlish_util_udt( p_arr => perlish_util_udt.map(p_arr => arr, p_expr => p_expr, p_ => p_) );
+        RETURN perlish_util_udt( perlish_util_udt.map(p_arr => arr, p_expr => p_expr, p_ => p_) );
     END;
 
     STATIC FUNCTION combine(
@@ -124,13 +126,13 @@ CREATE OR REPLACE TYPE BODY perlish_util_udt AS
     ) RETURN perlish_util_udt
     IS
     BEGIN
-        RETURN perlish_util_udt(p_arr => perlish_util_udt.combine(
+        RETURN perlish_util_udt(perlish_util_udt.combine(
                                         p_expr      => p_expr
                                         , p_arr_a   => arr
                                         , p_arr_b   => p_arr_b
                                         , p_a       => p_a
                                         , p_b       => p_b
-                                      )
+                                )
                 );
     END;
 
@@ -178,12 +180,13 @@ CREATE OR REPLACE TYPE BODY perlish_util_udt AS
         END IF;
         RETURN v_arr;
     END;
+
     MEMBER FUNCTION sort(
         p_descending    VARCHAR2 DEFAULT 'N'
     ) RETURN perlish_util_udt
     IS
     BEGIN
-        RETURN perlish_util_udt( p_arr => perlish_util_udt.sort(p_arr => arr, p_descending => p_descending) );
+        RETURN perlish_util_udt( perlish_util_udt.sort(p_arr => arr, p_descending => p_descending) );
     END;
     --
 
