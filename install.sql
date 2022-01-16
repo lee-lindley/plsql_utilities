@@ -1,5 +1,10 @@
 set serveroutput on
 --
+-- for conditional compilation based on sqlplus define settings.
+-- When we select a column alias named "file_choice", we get a sqlplus define value for "file_choice"
+--
+COLUMN file_choice NEW_VALUE do_file NOPRINT
+--
 -- People care about naming conventions. You must define these collection type names.
 -- If you already have collection types named the way you like, define those names here
 -- and comment out the install of the corresponding type in the app_types/install_app_types.sql script
@@ -16,8 +21,31 @@ define d_arr_arr_clob_udt="arr_arr_clob_udt"
 --define d_arr_clob_udt="clob_tab_t"
 --define d_arr_arr_clob_udt="clob_tab_tab_t"
 --
-prompt app_types/install_app_types.sql
-@@app_types/install_app_types.sql
+-- Set these to FALSE if you do not need to compile them
+define compile_arr_integer_udt="TRUE"
+define compile_arr_varchar2_udt="TRUE"
+define compile_arr_arr_varchar2_udt="TRUE"
+define compile_arr_clob_udt="TRUE"
+define compile_arr_arr_clob_udt="TRUE"
+define compile_app_dbms_sql="FALSE"
+define compile_csv_to_table="FALSE"
+
+define subdir=app_types
+SELECT DECODE('&&compile_arr_integer_udt','TRUE','&&subdir./arr_integer_udt.tps', 'do_nothing.sql arr_integer_udt') AS file_choice FROM dual;
+prompt calling &&do_file
+@@&&do_file
+SELECT DECODE('&&compile_arr_varchar2_udt','TRUE','&&subdir./arr_varchar2_udt.tps', 'do_nothing.sql arr_varchar2_udt') AS file_choice FROM dual;
+prompt calling &&do_file
+@@&&do_file
+SELECT DECODE('&&compile_arr_arr_varchar2_udt','TRUE','&&subdir./arr_arr_varchar2_udt.tps', 'do_nothing.sql arr_arr_varchar2_udt') AS file_choice FROM dual;
+prompt calling &&do_file
+@@&&do_file
+SELECT DECODE('&&compile_arr_clob_udt','TRUE','&&subdir./arr_clob_udt.tps', 'do_nothing.sql arr_clob_udt') AS file_choice FROM dual;
+prompt calling &&do_file
+@@&&do_file
+SELECT DECODE('&&compile_arr_arr_clob_udt','TRUE','&&subdir./arr_arr_clob_udt.tps', 'do_nothing.sql arr_arr_clob_udt') AS file_choice FROM dual;
+prompt calling &&do_file
+@@&&do_file
 --
 -- perlish_util_udt requires arr_varchar2_udt or your version of same
 --
@@ -27,14 +55,10 @@ prompt calling &&subdir/install_perlish_util.sql
 --
 -- csv_to_table_pkg requires arr_varchar2_udt or you can use your own version
 --
-/* uncomment these if you want csv_to_table */
---define subdir=csv_to_table 
---prompt calling &&subdir/install_csv_to_table.sql
---@&&subdir/install_csv_to_table.sql
---
-define subdir=app_csv_pkg
-prompt calling &&subdir/install_app_csv_pkg.sql
-@&&subdir/install_app_csv_pkg.sql
+define subdir=csv_to_table 
+SELECT DECODE('&&compile_csv_to_table','TRUE','&&subdir./install_csv_to_table.sql', 'do_nothing.sql csv_to_table') AS file_choice FROM dual;
+prompt calling &&do_file
+@@&&do_file
 --
 define subdir=app_log
 prompt calling &&subdir/install_app_log.sql
@@ -66,14 +90,11 @@ define subdir=app_zip
 prompt calling &&subdir/install_app_zip.sql
 @&&subdir/install_app_zip.sql
 --
- /*
- uncomment if you want app_dbms_sql. Generally it is compiled
- by other repository install scripts that include plsql_utilities as a submodule
- requires arr_clob_udt, arr_arr_clob_udt, arr_integer_udt, and arr_varchar2_udt
-*/
---define subdir=app_dbms_sql
---prompt calling &&subdir/install_app_dbms_sql.sql
---@&&subdir/install_app_dbms_sql.sql
+-- requires arr_clob_udt, arr_arr_clob_udt, arr_integer_udt, and arr_varchar2_udt
+define subdir=app_dbms_sql 
+SELECT DECODE('&&compile_app_dbms_sql','TRUE','&&subdir./install_app_dbms_sql.sql', 'do_nothing.sql app_dbms_sql') AS file_choice FROM dual;
+prompt calling &&do_file
+@@&&do_file
 --
 prompt running compile_schema for invalid objects
 BEGIN
