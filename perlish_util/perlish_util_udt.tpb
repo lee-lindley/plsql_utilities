@@ -64,6 +64,7 @@ CREATE OR REPLACE TYPE BODY perlish_util_udt AS
         p_expr          VARCHAR2 -- not an anonymous block
         ,p_arr          &&d_arr_varchar2_udt.
         ,p_             VARCHAR2 DEFAULT '$_' -- the string that is replaced in p_expr with array element
+        -- we also provide for '$##index_val##' as the array position integer
         -- example: v_arr := v_perlish_util_udt(v_arr).map('t.$_ = q.$_');
     ) RETURN &&d_arr_varchar2_udt.
     IS
@@ -75,7 +76,7 @@ CREATE OR REPLACE TYPE BODY perlish_util_udt AS
             v_arr.EXTEND(p_arr.COUNT);
             FOR i IN 1..p_arr.COUNT
             LOOP
-                v_arr(i) := REPLACE(p_expr, p_, p_arr(i));
+                v_arr(i) := REPLACE(REPLACE(p_expr, p_, p_arr(i)), '$##index_val##', i);
             END LOOP;
         END IF;
         RETURN v_arr;
@@ -530,6 +531,53 @@ CREATE OR REPLACE TYPE BODY perlish_util_udt AS
 	*/
 	END --split_csv
 	;
+
+	STATIC PROCEDURE create_ptt_csv (
+         -- creates private temporary table ora$ptt_csv with columns named in first row of data case preserved.
+         -- All fields are varchar2(4000)
+	     p_clob         CLOB
+	    ,p_separator    VARCHAR2    DEFAULT ','
+	    ,p_strip_dquote VARCHAR2    DEFAULT 'Y' -- also unquotes \" and "" pairs within the field to just "
+	) IS
+        v_rows      &&d_arr_varchar2_udt. := perlish_util_udt.split_clob_to_lines(p_clob);
+        v_cols      perlish_util_udt;
+        v_sql       CLOB;
+    BEGIN
+        v_cols := perlish_util_udt(perlish_util_udt.split_csv(v_rows(1), p_separator => p_separator, p_strip_dquote => 'Y'));
+        -- remove the header row so can bind the array to read the data
+        v_rows.DELETE(1);
+        v_sql := 'DROP TABLE ora$ptt_csv';
+        BEGIN
+            EXECUTE IMMEDIATE v_sql;
+        EXCEPTION WHEN OTHERS THEN NULL;
+        END;
+        v_sql := 'CREATE PRIVATE TEMPORARY TABLE ora$ptt_csv(
+'
+            ||v_cols.map('"$_"    VARCHAR2(4000)').join('
+,')
+            ||'
+)'
+            ;
+        DBMS_OUTPUT.put_line(v_sql);
+        EXECUTE IMMEDIATE v_sql;
+        v_sql := q'[INSERT INTO ora$ptt_csv 
+WITH a AS (
+    SELECT perlish_util_udt(
+            perlish_util_udt.split_csv(t.column_value, p_separator => :p_separator, p_strip_dquote => :p_strip_dquote, p_keep_nulls => 'Y')
+        ) AS p
+    FROM TABLE(:bind_array) t
+) SELECT ]'
+        ||v_cols.map('x.p.get($##index_val##) AS "$_"').join('
+,')
+        ||'
+FROM a x';
+        -- must use table alias and fully qualify object name with it to be able to call function or get attribute of object
+        -- Thus alias x for a.
+        DBMS_OUTPUT.put_line(v_sql);
+        EXECUTE IMMEDIATE v_sql USING p_separator, p_strip_dquote, v_rows;
+
+    END -- crate_ptt_csv
+    ;
 END;
 /
 show errors

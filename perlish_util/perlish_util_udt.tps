@@ -1,5 +1,5 @@
 CREATE OR REPLACE TYPE perlish_util_udt FORCE 
---AUTHID CURRENT_USER 
+AUTHID CURRENT_USER 
 AS OBJECT (
 /*
 	MIT License
@@ -99,6 +99,14 @@ AS OBJECT (
 
     ,STATIC FUNCTION split_clob_to_lines(p_clob CLOB)
     RETURN &&d_arr_varchar2_udt. DETERMINISTIC
+
+    ,STATIC PROCEDURE create_ptt_csv (
+         -- creates private temporary table ora$ptt_csv with columns named in first row of data case preserved.
+         -- All fields are varchar2(4000)
+	     p_clob         CLOB
+	    ,p_separator    VARCHAR2    DEFAULT ','
+	    ,p_strip_dquote VARCHAR2    DEFAULT 'Y' -- also unquotes \" and "" pairs within the field to just "
+	) 
 
 );
 /

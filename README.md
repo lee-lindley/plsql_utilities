@@ -10,6 +10,7 @@ per the MIT license, others are already public domain. Included are
 * Perlish Utility User Defined Type
     * Transforming Perl-style Regexp to Oracle RE
     * Splitting of CSV Strings into Fields
+    * Create private temporary table from CSV clob
     * methods that mimic the Perl *map*, *join* and *sort* methods in a chain of calls
 * Parse CSV data into Oracle resultset
 * Create Zoned Decimal Strings from Numbers
@@ -366,7 +367,8 @@ User Defined Type Table of INTEGER required for some of these utilities.
 
 It isn't Perl, but it makes some Perlish things a bit easier in PL/SQL. We also get
 handy methods for splitting Comma Separated Value (CSV) text into lines and fields,
-which you can use independent of the Perlish methods.
+which you can use independent of the Perlish methods, and even one that turns a CSV
+clob into a private temporary table.
 
 > There is valid argument
 that when you are programming in a language you should use the facilities of that language, 
@@ -391,6 +393,10 @@ formerly lived as a standalone function in the plsql_utilities library as *split
 We have a static method *split_clob_to_lines* that returns an *arr_varchar2_udt* collection
 of "records" from what is assumed to be a CSV file. It parses for CSV syntax when splitting the lines
 which means there can be embedded newlines in text fields in a "record".
+
+There is a static procedure *create_ptt_csv* that consumes a CLOB containing lines of CSV data
+and turns it into a private temporary table for your session. The PTT has column names from the
+first line in the CLOB.
 
 It also has a static method named *transform_perl_regexp* that has nothing to do with arrays/lists, but is Perlish.
 
@@ -423,6 +429,11 @@ Example 3:
 
     "  t.id = q.id,
         t.type = q.type"
+Example 4:
+```sql
+    SELECT perlish_util_udt('id, type').map('x.p.get($##index_val##) AS "$_"').join(', ') FROM dual;
+```
+    x.p.get(1) AS "id", x.p.get(2) AS "type"
 
 There are static versions of all of the methods. You do not have to create an
 object or use the object method syntax. You can use each of them independently as if they
@@ -487,6 +498,8 @@ CREATE OR REPLACE TYPE perlish_util_udt AUTHID CURRENT_USER AS OBJECT (
         p_expr          VARCHAR2 -- not an anonymous block
         ,p_arr          arr_varchar2_udt
         ,p_             VARCHAR2 DEFAULT '$_' -- the string that is replaced in p_expr with array element
+        -- In addition to replacing $_, we had coded replacement of $##index_val##. Do not change
+        -- p_ to $# or $## and expect to also use $##index_val##
     ) RETURN arr_varchar2_udt
     ,MEMBER FUNCTION map(
         p_expr          VARCHAR2 -- not an anonymous block
@@ -539,6 +552,14 @@ CREATE OR REPLACE TYPE perlish_util_udt AUTHID CURRENT_USER AS OBJECT (
 
     ,STATIC FUNCTION split_clob_to_lines(p_clob CLOB)
     RETURN arr_varchar2_udt DETERMINISTIC
+
+    ,STATIC PROCEDURE create_ptt_csv (
+         -- creates private temporary table ora$ptt_csv with columns named in first row of data case preserved.
+         -- All fields are varchar2(4000)
+	     p_clob         CLOB
+	    ,p_separator    VARCHAR2    DEFAULT ','
+	    ,p_strip_dquote VARCHAR2    DEFAULT 'Y' -- also unquotes \" and "" pairs within the field to just "
+	)
 );
 ```
 ### CONSTRUCTOR perlish_util_udt
@@ -617,7 +638,12 @@ END;
 
 The list elements are transformed by replacing the token '$\_'
 with the each list element as many times
-as it appears in the *p_expr* string. Note that this is just an expression version of the Perl *map*
+as it appears in the *p_expr* string. 
+
+Likewise, if the string '$##index_val##' occurs in the string, it is replaced with the array
+index value.
+
+Note that this is just an expression version of the Perl *map*
 functionality. We are not doing an anonymous block or anything really fancy. We could, but I do
 not think it would be a good idea. Keep your expectations low.
 
@@ -871,6 +897,94 @@ This results in:
 That requires the person writing the SQL to know how many columns are in the CSV data
 and what they are, which really isn't much of a hardship. *csv_to_table* (described next) provides for
 named columns, but is probably not necessary for most use cases.
+
+### create_ptt_csv
+
+> NOTE! Private Temporary Tables came available in Oracle 18c. *create_ptt_csv* will not work in prior releases.
+
+*create_ptt_csv* carries the combination of *split_clob_to_lines* and *split_csv* to the next level.
+
+The input clob is expected to contain a set of lines/rows as expected by *split_clob_to_lines* (which it calls).
+The first row, however, is expected to contain the column names. These column names are used
+to construct an Oracle PRIVATE TEMPORARY TABLE named **ora$ptt_csv** that exists until
+
+- your transaction commits
+- you call *create_ptt_csv* again and it drops the PTT before creating it again
+
+All of the fields in the PTT are VARCHAR2(4000).
+
+The data from the rest of the rows/lines is loaded into these columns with NULLS maintained.
+
+An example is the best
+explanation:
+
+```sql
+BEGIN
+    perlish_util_udt.create_ptt_csv('firstcol, secondcol, thirdcol
+1, 2, 3
+4, 5, 6');
+END;
+/
+SELECT * FROM ora$ptt_csv
+;
+```
+    "firstcol"	"secondcol"	"thirdcol"
+    "1"	"2"	"3"
+    "4"	"5"	"6"
+
+Or in JSON to make it clear what you are getting:
+
+	{
+	  "results" : [
+	    {
+	      "columns" : [
+	        {
+	          "name" : "firstcol",
+	          "type" : "VARCHAR2"
+	        },
+	        {
+	          "name" : "secondcol",
+	          "type" : "VARCHAR2"
+	        },
+	        {
+	          "name" : "thirdcol",
+	          "type" : "VARCHAR2"
+	        }
+	      ],
+	      "items" : [
+	        {
+	          "firstcol" : "1",
+	          "secondcol" : "2",
+	          "thirdcol" : "3"
+	        },
+	        {
+	          "firstcol" : "4",
+	          "secondcol" : "5",
+	          "thirdcol" : "6"
+	        }
+	      ]
+	    }
+	  ]
+	}
+
+#### p_clob
+
+The data is expected to be newline delimited or separated with each line/row containing CSV data. The first row
+is expected to contain column names. They must follow Oracle rules for column names. Regardless of your
+setting of *p_strip_dquote* for the rest of the data, the column name row is parsed with *p_strip_dquote* set
+to 'Y', then the resulting names are enclosed with double quotes. This means your names will have case preserved
+and may contain spaces when the PTT is created. You cannot have NULL values in the header row.
+
+Note that if all of your lines do not have at least as many fields as there are column names in the first record,
+*create_ptt_csv* will fail on the insert. You may have NULL values in the data (represented by ,,).
+
+#### p_separator
+
+Default is ',', but '|' and ';' are fairly common.
+
+#### p_strip_dquote
+
+You may have a reason to set this to 'N'. You need to understand the implications. It is ignored for the first row.
 
 ## csv_to_table
 
