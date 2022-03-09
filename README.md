@@ -29,11 +29,12 @@ per the MIT license, others are already public domain. Included are
 7. [arr_varchar2_udt](#arr_varchar2_udt)
 8. [arr_integer_udt](#arr_integer_udt)
 9. [perlish_util_udt](#perlish_util_udt)
-10. [csv_to_table](#csv_to_table)
-11. [to_zoned_decimal](#to_zoned_decimal)
-12. [as_zip](#as_zip)
-13. [app_zip](#app_zip)
-14. [app_dbms_sql](#app_dbms_sql)
+10. [perlish_util_pkg](#perlish_util_pkg)
+11. [csv_to_table](#csv_to_table)
+12. [to_zoned_decimal](#to_zoned_decimal)
+13. [as_zip](#as_zip)
+14. [app_zip](#app_zip)
+15. [app_dbms_sql](#app_dbms_sql)
 
 ## install.sql
 
@@ -52,7 +53,7 @@ and then set the corresponding **compile\*** define values to FALSE.
 if you set the compile directive define use_html_email to 'TRUE' in *app_job_log/install_app_job_log.sql*.
 
 Other than those, you can compile these separately or not at all. If you run *install.sql*
-as is, it will install 12 of the 14 components (and sub-components).
+as is, it will install 13 of the 15 components (and sub-components).
 
 The compile for [csv_to_table](#csv_to_table) is set to FALSE. The complexity is excessive
 for most use cases which can be fulfilled using the [perlish_util_udt](#perlish_util_udt) *split_clob_to_lines*,
@@ -985,6 +986,134 @@ Default is ',', but '|' and ';' are fairly common.
 #### p_strip_dquote
 
 You may have a reason to set this to 'N'. You need to understand the implications. It is ignored for the first row.
+
+## perlish_util_pkg
+
+One of the coolest things in Perl is the hash slice assignment. *perlish_util_pkg* implements the equivalent
+of a Perl hash slice and hash slice assignment. It throws in *indicies_of* and *values_of* functions.
+
+Oracle 21c provides functionality in FOR loop iteration controls and qualified expressions
+that will reduce the value of these functions and procedures.
+
+The package is needed because *perlish_util_udt* cannot work with associative arrays.
+Not only can an Oracle object type not contain an associative array, object type methods may not use them as parameters 
+or return types. I got excited when I saw Oracle 21c supported PL/SQL types in non-persistable object types,
+but it is only the scalar types like boolean and binary_integer.
+
+### Example 1
+
+```sql
+DECLARE
+    my_hash perlish_util_pkg.t_hash;
+    v_i VARCHAR2(4000);
+BEGIN
+    my_hash := perlish_util_pkg.hash_slice_assign(perlish_util_udt('a,b,c,d'), perlish_util_udt('one, two, three, four'));
+    v_i := my_hash.FIRST;
+    WHILE v_i IS NOT NULL LOOP
+        DBMS_OUTPUT.put_line('my_hash('||v_i||') is '||my_hash(v_i));
+        v_i := my_hash.NEXT(v_i);
+    END LOOP;
+    DBMS_OUTPUT.put_line(perlish_util_udt( perlish_util_pkg.hash_slice(my_hash, perlish_util_udt('b,d')) ).join(', ') );
+END;
+```
+Output:
+
+    my_hash(a) is one
+    my_hash(b) is two
+    my_hash(c) is three
+    my_hash(d) is four
+    two, four
+
+### Example 2
+
+```sql
+DECLARE
+    my_hash perlish_util_pkg.t_hash;
+    v_arr   arr_varchar2_udt;
+BEGIN
+    my_hash := perlish_util_pkg.hash_slice_assign(perlish_util_udt('a,b,c,d'), perlish_util_udt('one, two, three, four'));
+    v_arr := perlish_util_pkg.indicies_of(my_hash);
+    DBMS_OUTPUT.put_line(perlish_util_udt(v_arr).sort(p_descending => 'Y').join(', '));
+    v_arr := perlish_util_udt(v_arr).sort('Y').get();
+    -- yeah, yeah. there are other ways to do this particular thing in plsql. It is an example
+    FOR i IN 1..v_arr.COUNT
+    LOOP
+        DBMS_OUTPUT.put_line(my_hash( v_arr(i) ));
+    END LOOP;
+END;
+```
+Output:
+
+    d, c, b, a
+    four
+    three
+    two
+    one
+
+### Package Specification
+
+```sql
+    TYPE t_hash IS TABLE OF VARCHAR2(4000) INDEX BY VARCHAR2(4000);
+    FUNCTION hash_slice(
+         p_hash     t_hash
+        ,p_arr_a    arr_varcahr2_udt
+    ) RETURN arr_varcahr2_udt
+    ;
+    FUNCTION hash_slice(
+         p_hash     t_hash
+        ,p_arr_a    perlish_util_udt
+    ) RETURN arr_varcahr2_udt
+    ;
+    PROCEDURE hash_slice_assign(
+         p_hash     IN OUT NOCOPY t_hash
+        ,p_arr_a    arr_varchar2_udt
+        ,p_arr_b    arr_varchar2_udt
+    );
+    FUNCTION hash_slice_assign(
+         p_arr_a    arr_varchar2_udt
+        ,p_arr_b    arr_varchar2_udt
+    ) RETURN t_hash
+    ;
+    PROCEDURE hash_slice_assign(
+         p_hash     IN OUT NOCOPY t_hash
+        ,p_arr_a    perlish_util_udt
+        ,p_arr_b    perlish_util_udt
+    );
+    FUNCTION hash_slice_assign(
+         p_arr_a    perlish_util_udt
+        ,p_arr_b    perlish_util_udt
+    ) RETURN t_hash
+    ;
+    FUNCTION indicies_of(
+         p_hash     t_hash
+    ) RETURN &&d_arr_varchar2_udt.
+    ;
+    FUNCTION values_of(
+         p_hash     t_hash
+    ) RETURN &&d_arr_varchar2_udt.
+    ;
+```
+
+### hash_slice
+
+Given an associative array (hash) and and array of key values, return an array with the values
+from the hash for each key in the same order as the provided key list.
+
+### hash_slice_assign
+
+The provided collection (or the returned collection for Functions) has values
+assigned from *p_arr_b* for the corresponding element of *p_arr_a* as the index.
+Both arrays must have the same number of elements or an exception is raised.
+
+### indicies_of
+
+Given an associative array (hash), returns the indicies in the order Oracle stores them
+as a nested table collection.
+
+### values_of
+
+Given an associative array (hash), returns the values in the order Oracle stores them
+as a nested table collection.
 
 ## csv_to_table
 
