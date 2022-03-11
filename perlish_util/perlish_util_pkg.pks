@@ -34,6 +34,11 @@ IS
     ) RETURN t_hash
     ;
 
+    FUNCTION cursor2hash(
+        p_src   SYS_REFCURSOR
+    ) RETURN t_hash
+    ;
+
     FUNCTION indicies_of(
          p_hash     t_hash
     ) RETURN &&d_arr_varchar2_udt.
@@ -42,6 +47,7 @@ IS
          p_hash     t_hash
     ) RETURN &&d_arr_varchar2_udt.
     ;
+
 
 END perlish_util_pkg;
 /

@@ -78,6 +78,19 @@ IS
     END hash_slice_assign
     ;
 
+    FUNCTION cursor2hash(
+        p_src   SYS_REFCURSOR
+    ) RETURN t_hash
+    IS
+        v_indicies  &&d_arr_varchar2_udt.;
+        v_values    &&d_arr_varchar2_udt.;
+    BEGIN
+        FETCH p_src BULK COLLECT INTO v_indicies, v_values;
+        CLOSE p_src;
+        RETURN hash_slice_assign(v_indicies, v_values);
+    END cursor2hash
+    ;
+
     FUNCTION indicies_of(
          p_hash     t_hash
     ) RETURN &&d_arr_varchar2_udt.
@@ -120,6 +133,8 @@ IS
         RETURN v_arr;
     END values_of
     ;
+
+
 END perlish_util_pkg;
 /
 show errors

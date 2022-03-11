@@ -1000,7 +1000,7 @@ Not only can an Oracle object type not contain an associative array, object type
 or return types. I got excited when I saw Oracle 21c supported PL/SQL types in non-persistable object types,
 but it is only the scalar types like boolean and binary_integer.
 
-### Example 1
+#### Example 1
 
 ```sql
 DECLARE
@@ -1024,7 +1024,7 @@ Output:
     my_hash(d) is four
     two, four
 
-### Example 2
+#### Example 2
 
 ```sql
 DECLARE
@@ -1049,6 +1049,59 @@ Output:
     three
     two
     one
+
+#### Example 3
+
+```sql
+DECLARE
+    my_hash perlish_util_pkg.t_hash;
+    v_src   SYS_REFCURSOR;
+    v_idx   VARCHAR2(4000);
+BEGIN
+    OPEN v_src FOR 
+        SELECT department_name, TO_CHAR(department_id)
+        FROM hr.departments
+        ORDER BY department_name
+        ;
+    my_hash := perlish_util_pkg.cursor2hash(v_src);
+    v_idx := my_hash.FIRST;
+    WHILE v_idx IS NOT NULL
+    LOOP
+        DBMS_OUTPUT.put_line(v_idx||' IS '||my_hash(v_idx));
+        v_idx := my_hash.next(v_idx);
+    END LOOP;
+END;
+```
+
+Output:
+
+    Accounting IS 110
+    Administration IS 10
+    Benefits IS 160
+    Construction IS 180
+    Contracting IS 190
+    Control And Credit IS 140
+    Corporate Tax IS 130
+    Executive IS 90
+    Finance IS 100
+    Government Sales IS 240
+    Human Resources IS 40
+    IT IS 60
+    IT Helpdesk IS 230
+    IT Support IS 210
+    Manufacturing IS 170
+    Marketing IS 20
+    NOC IS 220
+    Operations IS 200
+    Payroll IS 270
+    Public Relations IS 70
+    Purchasing IS 30
+    Recruiting IS 260
+    Retail Sales IS 250
+    Sales IS 80
+    Shareholder Services IS 150
+    Shipping IS 50
+    Treasury IS 120
 
 ### Package Specification
 
@@ -1084,6 +1137,10 @@ Output:
         ,p_arr_b    perlish_util_udt
     ) RETURN t_hash
     ;
+    FUNCTION cursor2hash(
+        p_src   SYS_REFCURSOR
+    ) RETURN t_hash
+    ;
     FUNCTION indicies_of(
          p_hash     t_hash
     ) RETURN &&d_arr_varchar2_udt.
@@ -1094,23 +1151,28 @@ Output:
     ;
 ```
 
-### hash_slice
+#### hash_slice
 
 Given an associative array (hash) and and array of key values, return an array with the values
 from the hash for each key in the same order as the provided key list.
 
-### hash_slice_assign
+#### hash_slice_assign
 
 The provided collection (or the returned collection for Functions) has values
 assigned from *p_arr_b* for the corresponding element of *p_arr_a* as the index.
 Both arrays must have the same number of elements or an exception is raised.
 
-### indicies_of
+#### cursor2hash
+
+Given a cursor that returns two columns, both of which that should be VARCHAR2 up to 4000 chars, populate
+and return an associative array with indicies from the first column and values from the second column.
+
+#### indicies_of
 
 Given an associative array (hash), returns the indicies in the order Oracle stores them
 as a nested table collection.
 
-### values_of
+#### values_of
 
 Given an associative array (hash), returns the values in the order Oracle stores them
 as a nested table collection.
