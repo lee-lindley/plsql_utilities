@@ -6,6 +6,8 @@ prompt calling perlish_util_udt.tps
 @@perlish_util_udt.tps
 prompt calling perlish_util_udt.tpb
 @@perlish_util_udt.tpb
+prompt arr_perlish_util_udt.tps
+@@arr_perlish_util_udt.tps
 --
 prompt calling perlish_util_pkg.pks
 @@perlish_util_pkg.pks
