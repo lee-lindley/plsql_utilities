@@ -48,6 +48,17 @@ IS
     ) RETURN &&d_arr_varchar2_udt.
     ;
 
+    FUNCTION pairs_of(
+        p_hash      t_hash
+    ) RETURN &&d_arr_arr_varchar2_udt.
+    ;
+    PROCEDURE pairs_of(
+        p_hash          t_hash
+        ,p_indicies OUT &&d_arr_varchar2_udt.
+        ,p_values   OUT &&d_arr_varchar2_udt.
+    )
+    ;
+
 
 END perlish_util_pkg;
 /

@@ -133,6 +133,52 @@ IS
         RETURN v_arr;
     END values_of
     ;
+    FUNCTION pairs_of(
+        p_hash      t_hash
+    ) RETURN &&d_arr_arr_varchar2_udt.
+    IS
+        v_arr_arr   &&d_arr_arr_varchar2_udt. := &&d_arr_arr_varchar2_udt.();
+        v_i         BINARY_INTEGER := 1;
+        v_a         VARCHAR2(4000);
+    BEGIN
+        IF p_hash.COUNT > 0 THEN
+            v_arr_arr.EXTEND(p_hash.COUNT);
+            v_a := p_hash.FIRST;
+            WHILE v_a IS NOT NULL
+            LOOP
+                v_arr_arr(v_i) := &&d_arr_varchar2_udt.( v_a, p_hash(v_a) );
+                v_i := v_i + 1;
+                v_a := p_hash.NEXT(v_a);
+            END LOOP;
+        END IF;
+        RETURN v_arr_arr;
+    END pairs_of
+    ;
+    PROCEDURE pairs_of(
+        p_hash          t_hash
+        ,p_indicies OUT &&d_arr_varchar2_udt.
+        ,p_values   OUT &&d_arr_varchar2_udt.
+    )
+    IS
+        v_i         BINARY_INTEGER := 1;
+        v_a         VARCHAR2(4000);
+    BEGIN
+        p_indicies := &&d_arr_varchar2_udt.();
+        p_values   := &&d_arr_varchar2_udt.();
+        IF p_hash.COUNT > 0 THEN
+            p_indicies.EXTEND(p_hash.COUNT);
+            p_values.EXTEND(p_hash.COUNT);
+            v_a := p_hash.FIRST;
+            WHILE v_a IS NOT NULL
+            LOOP
+                p_indicies(v_i) := v_a;
+                p_values(v_i) := p_hash(v_a);
+                v_i := v_i + 1;
+                v_a := p_hash.NEXT(v_a);
+            END LOOP;
+        END IF;
+    END pairs_of
+    ;
 
 
 END perlish_util_pkg;

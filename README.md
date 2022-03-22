@@ -45,7 +45,9 @@ In this document I refer to them with **arr\*X\*udt** names, but you can follow 
 for them. If you already have types with the same characteristics, put those into the *define* statements
 and then set the corresponding **compile\*** define values to FALSE.
 
-*perlish_util_udt* and *csv_to_table* depend upon [arr_varchar2_udt](#arr_varchar2_udt) .
+*csv_to_table* and *perlish_util_udt* depend upon [arr_varchar2_udt](#arr_varchar2_udt).
+
+*perlish_util_pkg* depends on [arr_varchar2_udt](#arr_varchar2_udt) and [arr_arr_varchar2_udt](#arr_arr_varchar2_udt).
 
 *app_zip* depends on [as_zip](#as_zip), [app_lob](#app_lob), [arr_varchar2_udt](#arr_varchar2_udt), and [perlish_util_udt](#perlish__util_udt) (for split_csv).
 
@@ -360,6 +362,10 @@ TABLE OF *arr_clob_udt* (or array of arrays).
 
 User Defined Type Table of VARCHAR2(4000) required for some of these utilities. 
 
+## arr_arr_varchar2_udt
+
+User Defined Type Table of arr_varchar2_udt required for some of these utilities. 
+
 ## arr_integer_udt
 
 User Defined Type Table of INTEGER required for some of these utilities. 
@@ -478,30 +484,32 @@ Output:
 ### Type Specification
 
 ```sql
-CREATE OR REPLACE TYPE perlish_util_udt AUTHID CURRENT_USER AS OBJECT (
-    arr     arr_varchar2_udt
-
-    /* default construtor Oracle provides for reee
+CREATE OR REPLACE TYPE perlish_util_udt FORCE
+AS OBJECT (
+    arr     &&d_arr_varchar2_udt.
+--select perlish_util_udt(&&d_arr_varchar2_udt.('one', 'two', 'three', 'four')).sort().join(', ') from dual;
+--select perlish_util_udt('one, two, three, four').sort().join(', ') from dual;
+    /*
+    -- this one is provided by Oracle automatically as the default constructor
     ,CONSTRUCTOR FUNCTION perlish_util_udt(
-        p_arr    arr_varchar2_udt DEFAULT NULL
+        p_arr    &&d_arr_varchar2_udt.
     ) RETURN SELF AS RESULT
     */
     ,CONSTRUCTOR FUNCTION perlish_util_udt(
         p_csv   VARCHAR2
     ) RETURN SELF AS RESULT
     -- all are callable in a chain if they return perlish_util_udt; otherwise must be end of chain
-    ,MEMBER FUNCTION get RETURN arr_varchar2_udt
+    -- get the object member collection
+    ,MEMBER FUNCTION get RETURN &&d_arr_varchar2_udt.
     -- get a collection element
     ,MEMBER FUNCTION get(
         p_i             NUMBER
     ) RETURN VARCHAR2
     ,STATIC FUNCTION map(
         p_expr          VARCHAR2 -- not an anonymous block
-        ,p_arr          arr_varchar2_udt
+        ,p_arr          &&d_arr_varchar2_udt.
         ,p_             VARCHAR2 DEFAULT '$_' -- the string that is replaced in p_expr with array element
-        -- In addition to replacing $_, we had coded replacement of $##index_val##. Do not change
-        -- p_ to $# or $## and expect to also use $##index_val##
-    ) RETURN arr_varchar2_udt
+    ) RETURN &&d_arr_varchar2_udt.
     ,MEMBER FUNCTION map(
         p_expr          VARCHAR2 -- not an anonymous block
         ,p_             VARCHAR2 DEFAULT '$_' -- the string that is replaced in p_expr with array element
@@ -510,57 +518,69 @@ CREATE OR REPLACE TYPE perlish_util_udt AUTHID CURRENT_USER AS OBJECT (
     -- combines elements of 2 arrays based on p_expr and returns a new array
     ,STATIC FUNCTION combine(
         p_expr          VARCHAR2 -- not anonymous block. $_a_ and $_b_ are replaced
-        ,p_arr_a        arr_varchar2_udt
-        ,p_arr_b        arr_varchar2_udt
+        ,p_arr_a        &&d_arr_varchar2_udt.
+        ,p_arr_b        &&d_arr_varchar2_udt.
         ,p_a            VARCHAR2 DEFAULT '$_a_'
         ,p_b            VARCHAR2 DEFAULT '$_b_'
-    ) RETURN arr_varchar2_udt
+    ) RETURN &&d_arr_varchar2_udt.
     ,MEMBER FUNCTION combine(
         p_expr          VARCHAR2 -- not anonymous block. $_a_ and $_b_ are replaced
-        ,p_arr_b        arr_varchar2_udt
+        ,p_arr_b        &&d_arr_varchar2_udt.
         ,p_a            VARCHAR2 DEFAULT '$_a_'
         ,p_b            VARCHAR2 DEFAULT '$_b_'
         -- example: v_arr := v_perlish_util_udt(v_arr).combine(q'['$_a_' AS $_b_]', v_second_array);
     ) RETURN perlish_util_udt
+
     -- join the elements into a string with a separator between them
     ,STATIC FUNCTION join(
-        p_arr           arr_varchar2_udt
+        p_arr           &&d_arr_varchar2_udt.
         ,p_separator    VARCHAR2 DEFAULT ','
     ) RETURN VARCHAR2
     ,MEMBER FUNCTION join(
         p_separator     VARCHAR2 DEFAULT ','
     ) RETURN VARCHAR2
+    ,STATIC FUNCTION join2clob(
+        p_arr           &&d_arr_varchar2_udt.
+        ,p_separator    VARCHAR2 DEFAULT ','
+    ) RETURN CLOB
+    ,MEMBER FUNCTION join2clob(
+        p_separator     VARCHAR2 DEFAULT ','
+    ) RETURN CLOB
+
     -- yes these are ridiculous, but I want it
     ,STATIC FUNCTION sort(
-        p_arr           arr_varchar2_udt
+        p_arr           &&d_arr_varchar2_udt.
         ,p_descending   VARCHAR2 DEFAULT 'N'
-    ) RETURN arr_varchar2_udt
+    ) RETURN &&d_arr_varchar2_udt.
     ,MEMBER FUNCTION sort(
         p_descending    VARCHAR2 DEFAULT 'N'
     ) RETURN perlish_util_udt
     --
     -- these are really standalone but this was a good place to stash them
     --
+    ,STATIC FUNCTION transform_perl_regexp(p_re CLOB)
+        RETURN CLOB DETERMINISTIC
     ,STATIC FUNCTION transform_perl_regexp(p_re VARCHAR2)
-	RETURN VARCHAR2 DETERMINISTIC
+        RETURN VARCHAR2 DETERMINISTIC
 
     ,STATIC FUNCTION split_csv (
-	     p_s            VARCHAR2
-	    ,p_separator    VARCHAR2    DEFAULT ','
-	    ,p_keep_nulls   VARCHAR2    DEFAULT 'N'
-	    ,p_strip_dquote VARCHAR2    DEFAULT 'Y' -- also unquotes \" and "" pairs within the field to just "
-	) RETURN arr_varchar2_udt DETERMINISTIC
+             p_s            CLOB
+            ,p_separator    VARCHAR2    DEFAULT ','
+            ,p_keep_nulls   VARCHAR2    DEFAULT 'N'
+            ,p_strip_dquote VARCHAR2    DEFAULT 'Y' -- also unquotes \" and "" pairs within the field to just "
+        ) RETURN &&d_arr_varchar2_udt. DETERMINISTIC
 
     ,STATIC FUNCTION split_clob_to_lines(p_clob CLOB)
-    RETURN arr_varchar2_udt DETERMINISTIC
+    RETURN &&d_arr_varchar2_udt. DETERMINISTIC
 
     ,STATIC PROCEDURE create_ptt_csv (
          -- creates private temporary table ora$ptt_csv with columns named in first row of data case preserved.
          -- All fields are varchar2(4000)
-	     p_clob         CLOB
-	    ,p_separator    VARCHAR2    DEFAULT ','
-	    ,p_strip_dquote VARCHAR2    DEFAULT 'Y' -- also unquotes \" and "" pairs within the field to just "
-	)
+             p_clob         CLOB
+            ,p_separator    VARCHAR2    DEFAULT ','
+            ,p_strip_dquote VARCHAR2    DEFAULT 'Y' -- also unquotes \" and "" pairs within the field to just "
+        )
+
 );
 ```
 ### CONSTRUCTOR perlish_util_udt
@@ -602,6 +622,14 @@ BEGIN
     DBMS_OUTPUT.put_line(v1);
 END;
 ```
+
+### join2clob
+
+Same as *join*, but returns CLOB. In PL/SQL it will not matter as VARCHAR2 and CLOB are equivalent
+in most situations. In SQL you will need *join2clob*
+if the returned string is longer than 4000 characters, something users of *LISTAGG* 
+have likely been annoyed by before.
+
 ### sort
 
 I almost didn't provide this but the fact that you have to reach out to the SQL engine
@@ -990,15 +1018,15 @@ You may have a reason to set this to 'N'. You need to understand the implication
 ## perlish_util_pkg
 
 One of the coolest things in Perl is the hash slice assignment. *perlish_util_pkg* implements the equivalent
-of a Perl hash slice and hash slice assignment. It throws in *indicies_of* and *values_of* functions.
+of a Perl hash slice and hash slice assignment. It throws in *indicies_of*, *values_of*, and *pairs_of* methods.
 
 Oracle 21c provides functionality in FOR loop iteration controls and qualified expressions
 that will reduce the value of these functions and procedures.
 
-The package is needed because *perlish_util_udt* cannot work with associative arrays.
+The package is needed because *perlish_util_udt* cannot work with associative arrays (aka vectors).
 Not only can an Oracle object type not contain an associative array, object type methods may not use them as parameters 
 or return types. I got excited when I saw Oracle 21c supported PL/SQL types in non-persistable object types,
-but it is only the scalar types like boolean and binary_integer.
+but it is only the scalar types like boolean and binary\_integer. Bah!
 
 #### Example 1
 
@@ -1007,13 +1035,17 @@ DECLARE
     my_hash perlish_util_pkg.t_hash;
     v_i VARCHAR2(4000);
 BEGIN
-    my_hash := perlish_util_pkg.hash_slice_assign(perlish_util_udt('a,b,c,d'), perlish_util_udt('one, two, three, four'));
+    my_hash := perlish_util_pkg.hash_slice_assign(perlish_util_udt('a,b,c,d')
+                                                , perlish_util_udt('one, two, three, four')
+                                                 );
     v_i := my_hash.FIRST;
     WHILE v_i IS NOT NULL LOOP
         DBMS_OUTPUT.put_line('my_hash('||v_i||') is '||my_hash(v_i));
         v_i := my_hash.NEXT(v_i);
     END LOOP;
-    DBMS_OUTPUT.put_line(perlish_util_udt( perlish_util_pkg.hash_slice(my_hash, perlish_util_udt('b,d')) ).join(', ') );
+    DBMS_OUTPUT.put_line(perlish_util_udt( perlish_util_pkg.hash_slice(my_hash
+                                                    , perlish_util_udt('b,d')) ).join(', ') 
+                                                                      );
 END;
 ```
 Output:
@@ -1031,7 +1063,9 @@ DECLARE
     my_hash perlish_util_pkg.t_hash;
     v_arr   arr_varchar2_udt;
 BEGIN
-    my_hash := perlish_util_pkg.hash_slice_assign(perlish_util_udt('a,b,c,d'), perlish_util_udt('one, two, three, four'));
+    my_hash := perlish_util_pkg.hash_slice_assign(perlish_util_udt('a,b,c,d')
+                                                , perlish_util_udt('one, two, three, four')
+                                                 );
     v_arr := perlish_util_pkg.indicies_of(my_hash);
     DBMS_OUTPUT.put_line(perlish_util_udt(v_arr).sort(p_descending => 'Y').join(', '));
     v_arr := perlish_util_udt(v_arr).sort('Y').get();
@@ -1106,16 +1140,18 @@ Output:
 ### Package Specification
 
 ```sql
+    -- Oracle 21c will make these mostly obsolete.
+
     TYPE t_hash IS TABLE OF VARCHAR2(4000) INDEX BY VARCHAR2(4000);
     FUNCTION hash_slice(
          p_hash     t_hash
-        ,p_arr_a    arr_varcahr2_udt
-    ) RETURN arr_varcahr2_udt
+        ,p_arr_a    arr_varchar2_udt
+    ) RETURN arr_varchar2_udt
     ;
     FUNCTION hash_slice(
          p_hash     t_hash
         ,p_arr_a    perlish_util_udt
-    ) RETURN arr_varcahr2_udt
+    ) RETURN arr_varchar2_udt
     ;
     PROCEDURE hash_slice_assign(
          p_hash     IN OUT NOCOPY t_hash
@@ -1137,17 +1173,34 @@ Output:
         ,p_arr_b    perlish_util_udt
     ) RETURN t_hash
     ;
+
     FUNCTION cursor2hash(
         p_src   SYS_REFCURSOR
     ) RETURN t_hash
     ;
+    FUNCTION query2hash(
+        p_query CLOB
+    ) RETURN t_hash
+    ;
+
     FUNCTION indicies_of(
          p_hash     t_hash
-    ) RETURN &&d_arr_varchar2_udt.
+    ) RETURN arr_varchar2_udt
     ;
     FUNCTION values_of(
          p_hash     t_hash
-    ) RETURN &&d_arr_varchar2_udt.
+    ) RETURN arr_varchar2_udt
+    ;
+
+    FUNCTION pairs_of(
+        p_hash      t_hash
+    ) RETURN arr_arr_varchar2_udt
+    ;
+    PROCEDURE pairs_of(
+        p_hash          t_hash
+        ,p_indicies OUT arr_varchar2_udt
+        ,p_values   OUT arr_varchar2_udt
+    )
     ;
 ```
 
@@ -1167,6 +1220,12 @@ Both arrays must have the same number of elements or an exception is raised.
 Given a cursor that returns two columns, both of which that should be VARCHAR2 up to 4000 chars, populate
 and return an associative array with indicies from the first column and values from the second column.
 
+#### query2hash
+
+Creates a cursor from the query string and passes to *cursor2hash*. Note that the package is
+defined with invoker rights (AUTHID CURRENT_USER), so the caller must have privileges on any
+objects used by the query.
+
 #### indicies_of
 
 Given an associative array (hash), returns the indicies in the order Oracle stores them
@@ -1176,6 +1235,12 @@ as a nested table collection.
 
 Given an associative array (hash), returns the values in the order Oracle stores them
 as a nested table collection.
+
+#### pairs_of
+
+The function variant returns a collection of VARCHAR2 collections, each of which is a pair (index, value).
+
+The procedure variant initializes and populates the OUT parameters with the indexes and values respectively.
 
 ## csv_to_table
 

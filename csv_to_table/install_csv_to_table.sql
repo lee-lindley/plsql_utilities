@@ -8,4 +8,4 @@ prompt calling csv_to_table_pkg.pkb
 --
 --ALTER SESSION SET plsql_code_type = INTERPRETED;
 --ALTER SESSION SET plsql_optimize_level=2;
-GRANT EXECUTE ON csv_to_table_pkg TO PUBLIC;
+--GRANT EXECUTE ON csv_to_table_pkg TO PUBLIC;

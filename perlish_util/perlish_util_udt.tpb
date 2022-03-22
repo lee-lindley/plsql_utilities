@@ -153,6 +153,7 @@ CREATE OR REPLACE TYPE BODY perlish_util_udt AS
         END IF;
         RETURN v_s; -- can be null
     END;
+
     MEMBER FUNCTION join(
         p_separator    VARCHAR2 DEFAULT ','
     ) RETURN VARCHAR2
@@ -160,6 +161,24 @@ CREATE OR REPLACE TYPE BODY perlish_util_udt AS
     BEGIN
         RETURN perlish_util_udt.join(arr, p_separator); -- can be null
     END;
+
+    STATIC FUNCTION join2clob(
+        p_arr   &&d_arr_varchar2_udt.
+        ,p_separator    VARCHAR2 DEFAULT ','
+    ) RETURN CLOB
+    IS
+    BEGIN
+        RETURN TO_CLOB( perlish_util_udt.join(p_arr, p_separator) ); -- can be null
+    END; --join varchar2
+
+    MEMBER FUNCTION join2clob(
+        p_separator    VARCHAR2 DEFAULT ','
+    ) RETURN CLOB
+    IS
+    BEGIN
+        RETURN TO_CLOB( perlish_util_udt.join(arr, p_separator) ); -- can be null
+    END;
+
 
     STATIC FUNCTION sort(
         p_arr           &&d_arr_varchar2_udt.
@@ -197,12 +216,20 @@ CREATE OR REPLACE TYPE BODY perlish_util_udt AS
 	RETURN VARCHAR2
 	DETERMINISTIC
 	IS
+    BEGIN
+        RETURN TO_CHAR( perlish_util_udt.transform_perl_regexp( TO_CHAR(p_re) ) );
+    END; -- transform_perl_regexp varchar2
+
+    STATIC FUNCTION transform_perl_regexp(p_re CLOB)
+	RETURN CLOB
+	DETERMINISTIC
+	IS
 	    /*
 	        strip comment blocks that start with at least one blank, then
 	        '--' or '#', then everything to end of line or string
 	    */
-	    c_strip_comments_regexp CONSTANT VARCHAR2(32767) := '[[:blank:]](--|#).*($|
-	)';
+	    c_strip_comments_regexp CONSTANT VARCHAR2(30) := '[[:blank:]](--|#).*($|
+)';
 	BEGIN
 	    -- note that \n and \t will be replaced if not preceded by a \
 	    -- \\n and \\t will not be replaced. Unfortunately, neither will \\\n or \\\t.
@@ -287,7 +314,7 @@ CREATE OR REPLACE TYPE BODY perlish_util_udt AS
     ;
 
 	STATIC FUNCTION split_csv (
-	     p_s            VARCHAR2
+	     p_s            CLOB
 	    ,p_separator    VARCHAR2    DEFAULT ','
 	    ,p_keep_nulls   VARCHAR2    DEFAULT 'N'
 	    ,p_strip_dquote VARCHAR2    DEFAULT 'Y' -- also unquotes \" and "" pairs within the field to just "

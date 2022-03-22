@@ -1,3 +1,10 @@
+/*
+--------------------------------------------------------------------------------
+--  WARNING!!!! At end of this script we call procedure to compile
+--  all invalid objects in the schema. You may not want to do this,
+--  though it won't hurt anything
+--------------------------------------------------------------------------------
+*/
 set serveroutput on
 --
 -- for conditional compilation based on sqlplus define settings.

@@ -1,10 +1,9 @@
 CREATE OR REPLACE TYPE perlish_util_udt FORCE 
-AUTHID CURRENT_USER 
 AS OBJECT (
 /*
 	MIT License
 	
-	Copyright (c) 2021 Lee Lindley
+	Copyright (c) 2021,2022 Lee Lindley
 	
 	Permission is hereby granted, free of charge, to any person obtaining a copy
 	of this software and associated documentation files (the "Software"), to deal
@@ -68,6 +67,7 @@ AS OBJECT (
         ,p_b            VARCHAR2 DEFAULT '$_b_'
         -- example: v_arr := v_perlish_util_udt(v_arr).combine(q'['$_a_' AS $_b_]', v_second_array);
     ) RETURN perlish_util_udt
+
     -- join the elements into a string with a separator between them
     ,STATIC FUNCTION join(
         p_arr           &&d_arr_varchar2_udt.
@@ -76,6 +76,14 @@ AS OBJECT (
     ,MEMBER FUNCTION join(
         p_separator     VARCHAR2 DEFAULT ','
     ) RETURN VARCHAR2
+    ,STATIC FUNCTION join2clob(
+        p_arr           &&d_arr_varchar2_udt.
+        ,p_separator    VARCHAR2 DEFAULT ','
+    ) RETURN CLOB
+    ,MEMBER FUNCTION join2clob(
+        p_separator     VARCHAR2 DEFAULT ','
+    ) RETURN CLOB
+
     -- yes these are ridiculous, but I want it
     ,STATIC FUNCTION sort(
         p_arr           &&d_arr_varchar2_udt.
@@ -87,11 +95,13 @@ AS OBJECT (
     --
     -- these are really standalone but this was a good place to stash them
     --
+    ,STATIC FUNCTION transform_perl_regexp(p_re CLOB)
+	RETURN CLOB DETERMINISTIC
     ,STATIC FUNCTION transform_perl_regexp(p_re VARCHAR2)
 	RETURN VARCHAR2 DETERMINISTIC
 
     ,STATIC FUNCTION split_csv (
-	     p_s            VARCHAR2
+	     p_s            CLOB
 	    ,p_separator    VARCHAR2    DEFAULT ','
 	    ,p_keep_nulls   VARCHAR2    DEFAULT 'N'
 	    ,p_strip_dquote VARCHAR2    DEFAULT 'Y' -- also unquotes \" and "" pairs within the field to just "
