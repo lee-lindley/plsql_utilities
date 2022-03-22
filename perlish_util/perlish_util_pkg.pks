@@ -1,4 +1,5 @@
 CREATE OR REPLACE PACKAGE perlish_util_pkg
+AUTHID CURRENT_USER
 IS
     -- Oracle 21c will make these mostly obsolete.
 
@@ -38,6 +39,11 @@ IS
         p_src   SYS_REFCURSOR
     ) RETURN t_hash
     ;
+    FUNCTION query2hash(
+        p_query CLOB
+    ) RETURN t_hash
+    ;
+
 
     FUNCTION indicies_of(
          p_hash     t_hash

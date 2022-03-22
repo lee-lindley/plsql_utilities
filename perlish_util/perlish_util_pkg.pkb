@@ -91,6 +91,17 @@ IS
     END cursor2hash
     ;
 
+    FUNCTION query2hash(
+        p_query CLOB
+    ) RETURN t_hash
+    IS
+        v_src   SYS_REFCURSOR
+    BEGIN
+        OPEN v_src FOR p_query;
+        RETURN cursor2hash(v_src);
+    END cursor2hash
+    ;
+
     FUNCTION indicies_of(
          p_hash     t_hash
     ) RETURN &&d_arr_varchar2_udt.
