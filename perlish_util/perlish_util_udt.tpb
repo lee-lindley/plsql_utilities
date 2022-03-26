@@ -217,7 +217,7 @@ CREATE OR REPLACE TYPE BODY perlish_util_udt AS
 	DETERMINISTIC
 	IS
     BEGIN
-        RETURN TO_CHAR( perlish_util_udt.transform_perl_regexp( TO_CHAR(p_re) ) );
+        RETURN TO_CHAR( perlish_util_udt.transform_perl_regexp( TO_CLOB(p_re) ) );
     END; -- transform_perl_regexp varchar2
 
     STATIC FUNCTION transform_perl_regexp(p_re CLOB)
