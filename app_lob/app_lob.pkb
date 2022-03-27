@@ -117,6 +117,48 @@ IS
     END filetoclob
     ;
 
+    FUNCTION clobtoliterals(
+        p_clob                      CLOB
+        ,p_split_on_lf              VARCHAR2 DEFAULT 'n' -- back up to prior LF for end of chunk
+    ) RETURN CLOB
+    IS
+        v_clob                      CLOB;
+        v_len                       BINARY_INTEGER;
+        v_pos                       BINARY_INTEGER := 1;
+        v_end                       BINARY_INTEGER;
+    BEGIN
+        IF p_clob IS NULL THEN
+            v_len := 0;
+        ELSE
+            v_len := LENGTH(p_clob);
+        END IF;
+        WHILE v_pos <= v_len
+        LOOP
+            v_end := LEAST(v_pos + 32767 - 1, v_len);
+            IF p_split_on_lf IN ('y','Y') THEN
+                DECLARE
+                    l_i BINARY_INTEGER;
+                BEGIN
+                    l_i := INSTR(SUBSTR(p_clob, v_pos, v_end - v_pos + 1)
+                                , CHR(10) -- look for linefeed
+                                , -1 -- look from end of string backwards
+                           );
+DBMS_OUTPUT.put_line('l_i: '||TO_CHAR(l_i));
+                    IF l_i > 0 THEN
+                        v_end := l_i + v_pos - 1;
+                    END IF;
+                END;
+            END IF;
+            v_clob := v_clob || CASE WHEN v_pos > 1 THEN CHR(10)||'||' END
+                        ||q'[q'{]'||SUBSTR(p_clob, v_pos, v_end - v_pos + 1)||q'[}']'
+            ;
+            v_pos := v_end + 1;
+        END LOOP;
+        RETURN v_clob;
+    END clobtoliterals
+    ;
+
+
 END app_lob;
 /
 show errors

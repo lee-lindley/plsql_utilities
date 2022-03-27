@@ -95,11 +95,11 @@ IS
         p_query CLOB
     ) RETURN t_hash
     IS
-        v_src   SYS_REFCURSOR
+        v_src   SYS_REFCURSOR;
     BEGIN
         OPEN v_src FOR p_query;
         RETURN cursor2hash(v_src);
-    END cursor2hash
+    END query2hash
     ;
 
     FUNCTION indicies_of(

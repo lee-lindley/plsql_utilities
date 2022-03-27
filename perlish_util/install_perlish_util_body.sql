@@ -2,15 +2,9 @@
 --ALTER SESSION SET plsql_optimize_level=3;
 --define d_arr_varchar2_udt="arr_varchar2_udt"
 whenever sqlerror exit failure
-prompt calling perlish_util_udt.tps
-@@perlish_util_udt.tps
 prompt calling perlish_util_udt.tpb
 @@perlish_util_udt.tpb
-prompt arr_perlish_util_udt.tps
-@@arr_perlish_util_udt.tps
 --
-prompt calling perlish_util_pkg.pks
-@@perlish_util_pkg.pks
 prompt calling perlish_util_pkg.pkb
 @@perlish_util_pkg.pkb
 --

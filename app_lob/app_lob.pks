@@ -1,6 +1,34 @@
 CREATE OR REPLACE PACKAGE app_lob
 AUTHID CURRENT_USER
 IS
+
+    FUNCTION clobtoliterals(
+        p_clob                      CLOB
+        ,p_split_on_lf              VARCHAR2 DEFAULT 'n' -- back up to prior LF for end of chunk
+    ) RETURN CLOB
+    ;
+    /*
+        Purpose: convert a clob into a series of concatenated quoted character literal
+            values each of which are less than the 32767 limit. Allows encoding
+            clob content into a SQL input file that can be executed in sqlplus
+            or other command line or gui tools.
+            The most common use case is to provide CLOB data for a code promotion
+            file as can be used in most CI/Devops deployment tools.
+            The returned value extracted from the database as text can be passed
+            to any function or procedure that accepts a CLOB value or assigned
+            to a CLOB variable in an anonymous block.
+
+        Example:
+            SELECT app_lob.clobtoliterals(doc_content)
+            FROM my_clob_table
+            WHERE id = 123;
+        
+        Result:
+            TO_CLOB(q'{...}'
+            ||TO_CLOB(q'{...}'
+            ||TO_CLOB(q'{...}'
+    */
+
 /*
     This is all code you can find on the web or even in the Oracle documentation.
     Seems like Oracle should have put these in DBMS_LOB.

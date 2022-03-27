@@ -1,5 +1,4 @@
 CREATE OR REPLACE PACKAGE perlish_util_pkg
-AUTHID CURRENT_USER
 IS
     -- Oracle 21c will make these mostly obsolete.
 

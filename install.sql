@@ -1,10 +1,4 @@
-/*
---------------------------------------------------------------------------------
---  WARNING!!!! At end of this script we call procedure to compile
---  all invalid objects in the schema. You may not want to do this,
---  though it won't hurt anything
---------------------------------------------------------------------------------
-*/
+spool install.log
 set serveroutput on
 --
 -- for conditional compilation based on sqlplus define settings.
@@ -35,7 +29,6 @@ define compile_arr_arr_varchar2_udt="TRUE"
 define compile_arr_clob_udt="TRUE"
 define compile_arr_arr_clob_udt="TRUE"
 define compile_app_dbms_sql="FALSE"
-define compile_csv_to_table="FALSE"
 
 define subdir=app_types
 SELECT DECODE('&&compile_arr_integer_udt','TRUE','&&subdir./arr_integer_udt.tps', 'do_nothing.sql arr_integer_udt') AS file_choice FROM dual;
@@ -54,48 +47,51 @@ SELECT DECODE('&&compile_arr_arr_clob_udt','TRUE','&&subdir./arr_arr_clob_udt.tp
 prompt calling &&do_file
 @@&&do_file
 --
--- perlish_util_udt requires arr_varchar2_udt or your version of same
---
-define subdir=perlish_util
-prompt calling &&subdir/install_perlish_util.sql
-@&&subdir/install_perlish_util.sql
---
--- csv_to_table_pkg requires arr_varchar2_udt or you can use your own version
---
-define subdir=csv_to_table 
-SELECT DECODE('&&compile_csv_to_table','TRUE','&&subdir./install_csv_to_table.sql', 'do_nothing.sql csv_to_table') AS file_choice FROM dual;
-prompt calling &&do_file
-@@&&do_file
---
-define subdir=app_log
-prompt calling &&subdir/install_app_log.sql
-@&&subdir/install_app_log.sql
--- see define use_html_email in install_app_job_log.sql
-define subdir=app_job_log
-prompt calling &&subdir/install_app_job_log.sql
-@&&subdir/install_app_job_log.sql
---
-define subdir=app_parameter
-prompt &&subdir/install_app_parameter.sql
-@&&subdir/install_app_parameter.sql
---
-prompt to_zoned_decimal.sql
-@to_zoned_decimal.sql
---
 define subdir=app_lob
 prompt calling &&subdir/install_app_lob.sql
 @&&subdir/install_app_lob.sql
 --
+-- perlish_util_udt and app_csv_pkg require arr_varchar2_udt or your version of same.
+-- The two are mutually dependent so we compile specs first then bodies
+--
+define subdir=perlish_util
+prompt calling &&subdir/install_perlish_util_spec.sql
+@@&&subdir/install_perlish_util_spec.sql
+define subdir=app_csv_pkg
+prompt calling &&subdir/install_app_csv_pkg_spec.sql
+@@&&subdir/install_app_csv_pkg_spec.sql
+prompt calling &&subdir/install_app_csv_pkg_body.sql
+@@&&subdir/install_app_csv_pkg_body.sql
+define subdir=perlish_util
+prompt calling &&subdir/install_perlish_util_body.sql
+@@&&subdir/install_perlish_util_body.sql
+--
+define subdir=app_log
+prompt calling &&subdir/install_app_log.sql
+@@&&subdir/install_app_log.sql
+-- see define use_html_email in install_app_job_log.sql
+define subdir=app_job_log
+prompt calling &&subdir/install_app_job_log.sql
+@@&&subdir/install_app_job_log.sql
+--
+define subdir=app_parameter
+prompt &&subdir/install_app_parameter.sql
+@@&&subdir/install_app_parameter.sql
+--
+define subdir=misc
+prompt &&subdir/to_zoned_decimal.pls
+@@&&subdir/to_zoned_decimal.pls
+--
 define subdir=as_zip
 prompt calling &&subdir/install_as_zip.sql
-@&&subdir/install_as_zip.sql
+@@&&subdir/install_as_zip.sql
 --
--- requires as_zip, perlish_util_udt (for split_csv), app_lob 
+-- requires as_zip, app_csv_pkg (for split_csv), app_lob 
 -- and arr_varchar2_udt 
 --
 define subdir=app_zip
 prompt calling &&subdir/install_app_zip.sql
-@&&subdir/install_app_zip.sql
+@@&&subdir/install_app_zip.sql
 --
 -- requires arr_clob_udt, arr_arr_clob_udt, arr_integer_udt, and arr_varchar2_udt
 define subdir=app_dbms_sql 
@@ -103,11 +99,12 @@ SELECT DECODE('&&compile_app_dbms_sql','TRUE','&&subdir./install_app_dbms_sql.sq
 prompt calling &&do_file
 @@&&do_file
 --
-prompt running compile_schema for invalid objects
-BEGIN
-    DBMS_UTILITY.compile_schema( schema => SYS_CONTEXT('userenv','current_schema')
-                                ,compile_all => FALSE
-                                ,reuse_settings => TRUE
-                            );
-END;
-/
+--prompt running compile_schema for invalid objects
+--BEGIN
+--    DBMS_UTILITY.compile_schema( schema => SYS_CONTEXT('userenv','current_schema')
+--                                ,compile_all => FALSE
+--                                ,reuse_settings => TRUE
+--                            );
+--END;
+--/
+spool off

@@ -100,24 +100,6 @@ AS OBJECT (
     ,STATIC FUNCTION transform_perl_regexp(p_re VARCHAR2)
 	RETURN VARCHAR2 DETERMINISTIC
 
-    ,STATIC FUNCTION split_csv (
-	     p_s            CLOB
-	    ,p_separator    VARCHAR2    DEFAULT ','
-	    ,p_keep_nulls   VARCHAR2    DEFAULT 'N'
-	    ,p_strip_dquote VARCHAR2    DEFAULT 'Y' -- also unquotes \" and "" pairs within the field to just "
-	) RETURN &&d_arr_varchar2_udt. DETERMINISTIC
-
-    ,STATIC FUNCTION split_clob_to_lines(p_clob CLOB)
-    RETURN &&d_arr_varchar2_udt. DETERMINISTIC
-
-    ,STATIC PROCEDURE create_ptt_csv (
-         -- creates private temporary table ora$ptt_csv with columns named in first row of data case preserved.
-         -- All fields are varchar2(4000)
-	     p_clob         CLOB
-	    ,p_separator    VARCHAR2    DEFAULT ','
-	    ,p_strip_dquote VARCHAR2    DEFAULT 'Y' -- also unquotes \" and "" pairs within the field to just "
-	) 
-
 );
 /
 show errors
