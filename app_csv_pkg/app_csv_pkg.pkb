@@ -917,7 +917,7 @@ FROM a x';
             v_sql := v_sql||' WHERE '||p_where_clause;
         END IF;
         RETURN 'BEGIN
-    APP_CSV_PKG.create_ptt_csv('||APP_LOB.clobtoliterals( get_clob(p_sql => v_sql) )||'
+    APP_CSV_PKG.create_ptt_csv('||APP_LOB.clobtoliterals(p_clob => get_clob(p_sql => v_sql), p_split_on_lf => 'Y')||'
 );
 END;
 '||'/
@@ -959,7 +959,7 @@ COMMIT;'
             v_sql := v_sql||' WHERE '||p_where_clause;
         END IF;
         RETURN 'BEGIN
-    APP_CSV_PKG.create_ptt_csv('||APP_LOB.clobtoliterals( get_clob(p_sql => v_sql) )||'
+    APP_CSV_PKG.create_ptt_csv('||APP_LOB.clobtoliterals(p_clob => get_clob(p_sql => v_sql), p_split_on_lf => 'Y')||'
 );
 END;
 '||'/
