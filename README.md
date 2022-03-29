@@ -26,6 +26,8 @@ per the MIT license, others are already public domain. Included are
 
 *install.sql* runs each of these scripts in correct order.
 
+Each subdirectory has an install script that can be used separately as long as the dependencies are compiled first.
+
 There are sqlplus *define* statements at the top of the script for naming basic collection types.
 In this document I refer to them with **arr\_X\_udt** names, but you can follow your own naming guidelines
 for them. If you already have types with the same characteristics, put those into the *define* statements
@@ -56,7 +58,7 @@ that includes *plsql_utilities* as a submodule. It requires *arr_arr_clob_udt*, 
 |:--:|
 | Plsql Utilities Component Diagram |
 
-Each component has a separate directory and README.md file.
+Each component (or component group) has a separate directory, install.sql, and README.md file.
 
 - [app_csv_pkg](app_csv_pkg/)
     - Create CSV Rows from an Oracle query

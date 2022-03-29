@@ -16,7 +16,11 @@ Package provides utility methods for CLOB/BLOB types. Most of them should be in 
         ,p_split_on_lf              VARCHAR2 DEFAULT 'n' -- back up to prior LF for end of chunk
     ) RETURN CLOB;
     ```
-    - *clobtoliterals* may be useful when you need to build a clob larger than 32767 bytes within a deployment file such as can be loaded via *sqlplus*. This is for scenarios where you cannot use traditional methods for loading the clob to the database. My use case for this is CI/Devops deployment automation that only supports SQL files run through *sqlplus*.
+    - *clobtoliterals* returns a string consisting of one or more concatenated quoted literals. It is useful when you need to build a clob larger than 32767 bytes within a deployment file such as can be loaded via *sqlplus*. It is likely only used in a development environment.
+        - *p_split_on_lf* option is available because even though the database doesn't care, humans freak out if you break the literal somewhere other than on a line ending.
+    - Scenarios include
+        - You have a dynamic SQL string longer than 32767 bytes in a procedure body. (Don't laugh. Been there and would do it same way again.). 
+        - You cannot use traditional methods for loading the clob to the database and need to assign a value to a CLOB. My use case for this is CI/Devops deployment automation that only supports SQL files run through *sqlplus*.
 
 - blobtofile
     ```sql
