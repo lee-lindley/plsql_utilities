@@ -6,7 +6,7 @@ The package provides methods for dealing with Comma Separated Value (CSV) data.
 - Split CSV Record into Collection of Fields
 - Read from a CSV CLOB as a Table of Records
 - Create a Private Temporary (PTT) Table from a CSV CLOB
-- Generate a Deployment Script from a Table
+- Generate a DML Deployment Script from Table data
 
 A CSV row will have the separator between each field
 (can be any separator character, but comma (',') and pipe ('|') are most common).
@@ -323,7 +323,7 @@ into a CSV CLOB with a header row. Break the CLOB into a set of quoted
 string literals. Generate a script that
 
 1. Creates a Private Temporary Table from the CLOB (input as contactenated string literals).
-2. Inserts or Merges records from the PTT into the Table
+2. Inserts or Merges records from the PTT into the target Table
 
 ```sql
 SELECT APP_CSV_PKG.gen_deploy_merge(
@@ -531,9 +531,8 @@ as there are column names in the first record,
 > in an anonymous block, we have our data in *ora$ptt_csv* and can use it to execute our deployment
 > process objective (likely loading to an existing production table with INSERT or MERGE).
 
-Example of *clobtoliterals*:
-
-```sql
+- Example of *clobtoliterals*:
+    ```sql
     SELECT app_lob.clobtoliterals(
                 app_csv_pkg.get_clob(
                     p_sql => q'!
@@ -550,38 +549,36 @@ Example of *clobtoliterals*:
                 ,'Y'
            )
     FROM dual;
-```
-
-Results (3 concatenated quoted literal strings the last portion shown here):
-
-```sql
-q'{"ID","Create Date","VAL"
-...
-1479,"03/26/2022","dummy text to pad it out"
-}'
-||q'{1480,"03/26/2022","dummy text to pad it out"
-1481,"03/26/2022","dummy text to pad it out"
-1482,"03/26/2022","dummy text to pad it out"
-1483,"03/26/2022","dummy text to pad it out"
-1484,"03/26/2022","dummy text to pad it out"
-1485,"03/26/2022","dummy text to pad it out"
-1486,"03/26/2022","dummy text to pad it out"
-1487,"03/26/2022","dummy text to pad it out"
-1488,"03/26/2022","dummy text to pad it out"
-1489,"03/26/2022","dummy text to pad it out"
-1490,"03/26/2022","dummy text to pad it out"
-1491,"03/26/2022","dummy text to pad it out"
-1492,"03/26/2022","dummy text to pad it out"
-1493,"03/26/2022","dummy text to pad it out"
-1494,"03/26/2022","dummy text to pad it out"
-1495,"03/26/2022","dummy text to pad it out"
-1496,"03/26/2022","dummy text to pad it out"
-1497,"03/26/2022","dummy text to pad it out"
-1498,"03/26/2022","dummy text to pad it out"
-1499,"03/26/2022","dummy text to pad it out"
-1500,"03/26/2022","dummy text to pad it out"
-}'
-```
+    ```
+    - Results (3 concatenated quoted literal strings the last portion shown here):
+    ```sql
+    q'{"ID","Create Date","VAL"
+    ...
+    1479,"03/26/2022","dummy text to pad it out"
+    }'
+    ||q'{1480,"03/26/2022","dummy text to pad it out"
+    1481,"03/26/2022","dummy text to pad it out"
+    1482,"03/26/2022","dummy text to pad it out"
+    1483,"03/26/2022","dummy text to pad it out"
+    1484,"03/26/2022","dummy text to pad it out"
+    1485,"03/26/2022","dummy text to pad it out"
+    1486,"03/26/2022","dummy text to pad it out"
+    1487,"03/26/2022","dummy text to pad it out"
+    1488,"03/26/2022","dummy text to pad it out"
+    1489,"03/26/2022","dummy text to pad it out"
+    1490,"03/26/2022","dummy text to pad it out"
+    1491,"03/26/2022","dummy text to pad it out"
+    1492,"03/26/2022","dummy text to pad it out"
+    1493,"03/26/2022","dummy text to pad it out"
+    1494,"03/26/2022","dummy text to pad it out"
+    1495,"03/26/2022","dummy text to pad it out"
+    1496,"03/26/2022","dummy text to pad it out"
+    1497,"03/26/2022","dummy text to pad it out"
+    1498,"03/26/2022","dummy text to pad it out"
+    1499,"03/26/2022","dummy text to pad it out"
+    1500,"03/26/2022","dummy text to pad it out"
+    }'
+    ```
 
 The use case [Create Private Temporary Table from CSV CLOB](#create-private-temporary-table-from-csv-clob)
 provides an example usage while the 

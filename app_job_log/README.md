@@ -1,5 +1,11 @@
 # app_job_log
 
+An extension of logging for batch jobs.
+
+- mark start and end of a batch job
+- report errors in standardized format
+- optionally send email on job failure and/or success
+
 A subtype of [app_log_udt](#app_log), *app_job_log_udt* extends the logging facility
 with methods suitable for marking the start and end of a batch job as well as
 reporting errors. In particular the *jfailed* and *log_trace* methods simplify standardization

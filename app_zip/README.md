@@ -1,5 +1,10 @@
 # app_zip
 
+- add BLOB to zip
+- add CLOB to zip
+- add 1 or more files to zip from Database Directory Object(s)
+- get finished zip BLOB
+
 An object type wrapper for [as_zip](#../as_zip), it adds methods for adding clobs and for
 adding multiple files at once from a comma separated list string. The functionality
 is exclusively for creating the zip archive BLOB. If you want to list the file content

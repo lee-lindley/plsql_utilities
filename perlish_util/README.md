@@ -1,5 +1,12 @@
 # perlish_util
 
+- Transform regular expression string from Perl Extended format to Oracle regex string
+- map a string transformation onto list elements
+- join string elements into single string with separator
+- sort
+- get
+- combine elements of two lists into new list
+
 ## perlish_util_udt
 
 It isn't Perl, but it makes some Perlish things a bit easier in PL/SQL. 
