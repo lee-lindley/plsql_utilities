@@ -340,7 +340,7 @@ of just one as shown here.
 
 ```sql
 BEGIN
-    APP_CSV_PKG.create_ptt_csv(q'{"ID","MSG","DT"
+    APP_CSV_PKG.create_ptt_csv(TO_CLOB(q'{"ID","MSG","DT"
 1,"testing...","03/26/2022"
 2,"testing...","03/27/2022"
 3,"testing...","03/28/2022"
@@ -351,7 +351,7 @@ BEGIN
 8,"testing...","04/02/2022"
 9,"testing...","04/03/2022"
 10,"testing...","04/04/2022"
-}'
+}')
 );
 END;
 /
@@ -552,11 +552,11 @@ as there are column names in the first record,
     ```
     - Results (3 concatenated quoted literal strings the last portion shown here):
     ```sql
-    q'{"ID","Create Date","VAL"
+    TO_CLOB(q'{"ID","Create Date","VAL"
     ...
     1479,"03/26/2022","dummy text to pad it out"
-    }'
-    ||q'{1480,"03/26/2022","dummy text to pad it out"
+    }')
+    ||TO_CLOB(q'{1480,"03/26/2022","dummy text to pad it out"
     1481,"03/26/2022","dummy text to pad it out"
     1482,"03/26/2022","dummy text to pad it out"
     1483,"03/26/2022","dummy text to pad it out"
@@ -577,7 +577,7 @@ as there are column names in the first record,
     1498,"03/26/2022","dummy text to pad it out"
     1499,"03/26/2022","dummy text to pad it out"
     1500,"03/26/2022","dummy text to pad it out"
-    }'
+    }')
     ```
 
 The use case [Create Private Temporary Table from CSV CLOB](#create-private-temporary-table-from-csv-clob)

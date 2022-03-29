@@ -150,7 +150,7 @@ DBMS_OUTPUT.put_line('l_i: '||TO_CHAR(l_i));
                 END;
             END IF;
             v_clob := v_clob || CASE WHEN v_pos > 1 THEN CHR(10)||'||' END
-                        ||q'[q'{]'||SUBSTR(p_clob, v_pos, v_end - v_pos + 1)||q'[}']'
+                        ||q'[TO_CLOB(q'{]'||SUBSTR(p_clob, v_pos, v_end - v_pos + 1)||q'[}')]'
             ;
             v_pos := v_end + 1;
         END LOOP;
