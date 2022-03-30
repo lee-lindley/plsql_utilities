@@ -323,7 +323,7 @@ app_dbms_sql_udt</panel_attributes>
     <panel_attributes>symbol=component
 halign=left
 bg=yellow
-app_dbms_sql_udt</panel_attributes>
+app_dbms_sql_str_udt</panel_attributes>
     <additional_attributes/>
   </element>
   <element>

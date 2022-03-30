@@ -835,30 +835,38 @@ $if DBMS_DB_VERSION.VERSION >= 18 $then
 
 	PROCEDURE create_ptt_csv (
          --
-         -- creates private temporary table "ora$ptt_csv" with columns named in first row of data case preserved.
+         -- creates private temporary table "ora$ptt_csv" with columns named in first row of data (case preserved).
+         -- from a CLOB containing CSV lines.
          -- All fields are varchar2(4000)
          --
 	     p_clob         CLOB
 	    ,p_separator    VARCHAR2    DEFAULT ','
 	    ,p_strip_dquote VARCHAR2    DEFAULT 'Y' -- also unquotes \" and "" pairs within the field to just "
 	) IS
-        v_cols          perlish_util_udt;
+        v_cols          perlish_util_udt; -- for manipulating column names into SQL statement
         v_sql           CLOB;
         v_first_row     VARCHAR2(32767);
         v_ins_curs      INT;
         v_num_rows      INT;
         v_last_row_cnt  BINARY_INTEGER := 0;
         v_col_cnt       BINARY_INTEGER;
-        v_vals_1_row    &&d_arr_varchar2_udt.;
-        v_rows          DBMS_SQL.varchar2a;
+        v_vals_1_row    &&d_arr_varchar2_udt.;  -- from split_csv on 1 line
+        v_rows          DBMS_SQL.varchar2a;     -- from split_clob_to_lines fetch
+        --
+        -- variable number of columns, each of which has a bind array.
+        --
         TYPE varchar2a_tab  IS TABLE OF DBMS_SQL.varchar2a INDEX BY BINARY_INTEGER;
-        v_vals          varchar2a_tab;
+        v_vals          varchar2a_tab;          -- array of columns each of which holds array of values
+        --
+        -- We get all but the header row when we read the clob in a loop.
+        --
         CURSOR c_read_rows IS
             SELECT t.s
             FROM TABLE(app_csv_pkg.split_clob_to_lines(p_clob, p_skip_lines => 1))  t
             ;
     BEGIN
         BEGIN
+            -- read the first row only
             SELECT s INTO v_first_row 
             FROM TABLE( app_csv_pkg.split_clob_to_lines(p_clob, p_max_lines => 1) )
             ;
@@ -892,15 +900,18 @@ $if DBMS_DB_VERSION.VERSION >= 18 $then
         EXECUTE IMMEDIATE v_sql;
         
         -- 
-        -- Populate the private global temporary table from all but the first line in the clob.
+        -- Dynamic sql for dbms_sql. will be used with bind arrays.
+        -- Of note is that it reports conventional load even if specify append.
+        -- I don't understand that as I've seen other reports that direct path load works.
+        -- Does not seem to matter though.
         --
-        v_sql := 'INSERT /*+ APPEND */ INTO ora$ptt_csv(
+        v_sql := 'INSERT INTO ora$ptt_csv(
 '
         ||v_cols.map('"$_"').join(', ')
         ||'
 ) VALUES (
 '
-        ||v_cols.map(':$##index_val##').join(', ')
+        ||v_cols.map(':$##index_val##').join(', ') -- :1, :2, :3, etc...
         ||'
 )';
         DBMS_OUTPUT.put_line(v_sql);
@@ -924,9 +935,9 @@ $if DBMS_DB_VERSION.VERSION >= 18 $then
             IF v_last_row_cnt != v_rows.COUNT THEN -- will be true on first loop iteration
                 v_last_row_cnt := v_rows.COUNT;
                 -- bind each column array. v_vals has an array for every column
-                FOR i IN 1..v_col_cnt
+                FOR j IN 1..v_col_cnt
                 LOOP
-                    DBMS_SQL.bind_array(v_ins_curs, ':'||TO_CHAR(i), v_vals(i), 1, v_last_row_cnt);
+                    DBMS_SQL.bind_array(v_ins_curs, ':'||TO_CHAR(j), v_vals(j), 1, v_last_row_cnt);
                 END LOOP;
             END IF;
 

@@ -315,6 +315,7 @@ Or in JSON to make it clear what you are getting:
 	  ]
 	}
 ```
+In case it wasn't obvious, notice that the column names in the example are lower case.
 
 ## Generate Deployment Script from Table
 
@@ -479,8 +480,8 @@ for the order even if it works today. Most of the time you probably will not car
 ## create_ptt_csv
 
 > *create_ptt_csv* requires the calling account to have **CREATE TABLE** privilege. You can create
-> a wrapper package compiled in a schema that has **CREATE TABLE** granted directly (not through
-> a role) if necessary to support such an account.
+> a wrapper package or procedure compiled in a schema that has **CREATE TABLE** granted directly (not through
+> a role) if necessary to support accounts without **CREATE TABLE**.
 
 ```sql
     PROCEDURE create_ptt_csv (
