@@ -842,9 +842,21 @@ $if DBMS_DB_VERSION.VERSION >= 18 $then
 	    ,p_separator    VARCHAR2    DEFAULT ','
 	    ,p_strip_dquote VARCHAR2    DEFAULT 'Y' -- also unquotes \" and "" pairs within the field to just "
 	) IS
-        v_cols      perlish_util_udt;
-        v_sql       CLOB;
-        v_first_row VARCHAR2(32767);
+        v_cols          perlish_util_udt;
+        v_sql           CLOB;
+        v_first_row     VARCHAR2(32767);
+        v_ins_curs      INT;
+        v_num_rows      INT;
+        v_last_row_cnt  BINARY_INTEGER := 0;
+        v_col_cnt       BINARY_INTEGER;
+        v_vals_1_row    &&d_arr_varchar2_udt.;
+        v_rows          DBMS_SQL.varchar2a;
+        TYPE varchar2a_tab  IS TABLE OF DBMS_SQL.varchar2a INDEX BY BINARY_INTEGER;
+        v_vals          varchar2a_tab;
+        CURSOR c_read_rows IS
+            SELECT t.s
+            FROM TABLE(app_csv_pkg.split_clob_to_lines(p_clob, p_skip_lines => 1))  t
+            ;
     BEGIN
         BEGIN
             SELECT s INTO v_first_row 
@@ -858,8 +870,8 @@ $if DBMS_DB_VERSION.VERSION >= 18 $then
         END;
         -- split the column header values into collection
         v_cols := perlish_util_udt(split_csv(v_first_row, p_separator => p_separator, p_strip_dquote => 'Y'));
+        v_col_cnt := v_cols.arr.COUNT;
 
-        --
         -- create the private global temporary table with "known" name and columns matching names found
         -- in csv first record
         --
@@ -878,27 +890,51 @@ $if DBMS_DB_VERSION.VERSION >= 18 $then
             ;
         DBMS_OUTPUT.put_line(v_sql);
         EXECUTE IMMEDIATE v_sql;
-
+        
         -- 
         -- Populate the private global temporary table from all but the first line in the clob.
-        -- Binding the clob should be relatively efficient in just passing a pointer
         --
-        v_sql := q'[INSERT /*+ APPEND */ INTO ora$ptt_csv 
-WITH a AS (
-    SELECT perlish_util_udt(
-            app_csv_pkg.split_csv(t.s, p_separator => :p_separator, p_strip_dquote => :p_strip_dquote, p_keep_nulls => 'Y')
-        ) AS p
-    FROM TABLE( app_csv_pkg.split_clob_to_lines(:p_clob, p_skip_lines => 1) ) t
-) SELECT ]'
-        -- must use table alias and fully qualify object name with it to be able to call function or get attribute of object
-        -- Thus alias x for a and use x.p.get vs a.p.get.
-        ||v_cols.map('x.p.get($##index_val##) AS "$_"').join('
-,')
+        v_sql := 'INSERT /*+ APPEND */ INTO ora$ptt_csv(
+'
+        ||v_cols.map('"$_"').join(', ')
         ||'
-FROM a x';
+) VALUES (
+'
+        ||v_cols.map(':$##index_val##').join(', ')
+        ||'
+)';
         DBMS_OUTPUT.put_line(v_sql);
-        EXECUTE IMMEDIATE v_sql USING p_separator, p_strip_dquote, p_clob;
+        v_ins_curs := DBMS_SQL.open_cursor;
+        DBMS_SQL.parse(v_ins_curs, v_sql, DBMS_SQL.native);
 
+        OPEN c_read_rows;
+        LOOP
+            FETCH c_read_rows BULK COLLECT INTO v_rows LIMIT 100;
+            EXIT WHEN v_rows.COUNT = 0;
+            FOR i IN 1..v_rows.COUNT
+            LOOP
+                v_vals_1_row := app_csv_pkg.split_csv(v_rows(i), p_separator => p_separator, p_strip_dquote => p_strip_dquote, p_keep_nulls => 'Y');
+                -- j is column number
+                FOR j IN 1..v_col_cnt
+                LOOP
+                    v_vals(j)(i) := v_vals_1_row(j);
+                END LOOP;
+            END LOOP;
+
+            IF v_last_row_cnt != v_rows.COUNT THEN -- will be true on first loop iteration
+                v_last_row_cnt := v_rows.COUNT;
+                -- bind each column array. v_vals has an array for every column
+                FOR i IN 1..v_col_cnt
+                LOOP
+                    DBMS_SQL.bind_array(v_ins_curs, ':'||TO_CHAR(i), v_vals(i), 1, v_last_row_cnt);
+                END LOOP;
+            END IF;
+
+            v_num_rows := DBMS_SQL.execute(v_ins_curs);
+
+        END LOOP;
+        DBMS_SQL.close_cursor(v_ins_curs);
+        CLOSE c_read_rows;
     END -- create_ptt_csv
     ;
 
