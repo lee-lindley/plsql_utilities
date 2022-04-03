@@ -1,10 +1,10 @@
 # app_csv_pkg
 
-The package provides methods for dealing with Comma Separated Value (CSV) data.
+*app_csv_pkg* provides methods for dealing with Comma Separated Value (CSV) data.
 
-- Create CSV Rows from an Oracle query.
+- Create CSV Rows, File or CLOB from an Oracle query.
 - Split CSV Record into Collection of Fields
-- Read from a CSV CLOB as a Table of Records
+- Read from a CSV CLOB as a Table of Records or Table of Fields Arrays
 - Create a Private Temporary (PTT) Table from a CSV CLOB
 - Generate a DML Deployment Script from Table data
 
@@ -23,12 +23,13 @@ a Polymorphic Table Function. Likewise, methods can consume a multi-line CLOB or
 
 > NOTE: Many of the methods
 require Oracle version 18c or higher as they depend on a Polymorphic Table Function. 
-If you are on an earlier version, *split_csv* and *split_clob_to_lines* methods will compile,
+If you are on an earlier version, *split_csv*, *split_clob_to_lines*, and *split_lines_to_fields* methods will compile,
 but the rest will be left out.
 I have another github repository [app_csv_udt](https://github.com/lee-lindley/app_csv) 
 that should run on Oracle 10g or better, has a few more options, and an Object Oriented
 interface I prefer. I've found many people are less comfortable with the Object Oriented interface.
-This is also simpler in many respects.
+This is also simpler in many respects. Unfortunately, there is no way around the lack of Private Temporary
+Tables in earlier versions.
 
 > ADDENDUM: There is a substantial limitation of Polymorphic Table Functions at least as of 19.6 and 20.3 (may
 have been addressed in later releases) that may make
@@ -46,11 +47,13 @@ at the bottom of this document.
     - [Create CSV File](#create-csv-file)
     - [Split CSV Record into Collection of Fields](#split-csv-record-into-collection-of-fields)
     - [Read CSV CLOB as Table of Records](#read-csv-clob-as-table-of-records)
+    - [Convert Table of Records to Table of Fields Arrays](#convert-table-of-records-to-table-of-fields-arrays)
     - [Create Private Temporary Table from CSV CLOB](#create-private-temporary-table-from-csv-clob)
     - [Generate Deployment Script from Table](#generate-deployment-script-from-table)
 - [Manual Page](#manual-page)
     - [splti_csv](#split_csv)
     - [split_clob_to_lines](#split_clob_to_lines)
+    - [split_lines_to_fields](#split_lines_to_fields)
     - [create_ptt_csv](#create_ptt_csv)
     - [gen_deploy_insert](#gen_deploy_insert)
     - [gen_deploy_merge](#gen_deploy_merge)
@@ -257,6 +260,57 @@ This JSON representation seems to capture the detail.
     }
   ]
 }
+```
+
+## Convert Table of Records to Table of Fields Arrays
+
+If you are working inside PL/SQL, then you can call *split_csv* to parse a record returned from *split_clob_to_lines*.
+You can also do that in SQL, but will incur context switch costs that can be significant. The pipelined table function
+*split_lines_to_fields* is passed a cursor expected to provide CSV line rows as are produced by *split_clob_to_lines*.
+The most efficient way to call it is as a chained pipeline table construct directly in SQL:
+
+```sql
+    SELECT t.arr 
+    FROM TABLE(
+                app_csv_pkg.split_lines_to_fields(
+                    CURSOR(SELECT * 
+                           FROM TABLE( app_csv_pkg.split_clob_to_lines(:p_clob, p_skip_lines => 1) )
+                    )
+                    , p_separator => :p_separator, p_strip_dquote => :p_strip_dquote, p_keep_nulls => 'Y'
+                )
+    ) t
+```
+
+This gives you records containing a collection of strings. From there you can construct a *perlish_util_udt*
+object or deal with the fields directly as in this example:
+
+```sql
+WITH FUNCTION wget(
+    p_arr   ARR_VARCHAR2_UDT
+    ,p_i    NUMBER
+) RETURN VARCHAR2
+AS
+BEGIN
+    RETURN p_arr(p_i);
+END;
+a AS (
+    SELECT t.arr 
+    FROM TABLE(
+                app_csv_pkg.split_lines_to_fields(
+                    CURSOR(SELECT * 
+                           FROM TABLE( app_csv_pkg.split_clob_to_lines(:p_clob, p_skip_lines => 1) )
+                    )
+                    , p_separator => :p_separator, p_strip_dquote => :p_strip_dquote, p_keep_nulls => 'Y'
+                )
+    ) t
+) SELECT 
+     get(a.arr, 1) AS "Employee ID"
+    ,get(a.arr, 2) AS "Last Name"
+    ,get(a.arr, 3) AS "First Name"
+    ,get(a.arr, 4) AS "nickname"
+FROM a
+;
+/
 ```
 
 ## Create Private Temporary Table from CSV CLOB
@@ -476,6 +530,46 @@ clause. If you need to preserve the order of the lines in the CLOB, you can coun
 can specify it. I'll remind you that Oracle has changed the underlying default order before when they 
 switched "DISTINCT" to use a hash rather than a sort, so not a good idea to depend on the implementation
 for the order even if it works today. Most of the time you probably will not care about preserving the order.
+
+## split_lines_to_fields
+
+```sql
+    -- public type to be returned by split_clob_to_lines PIPE ROW function
+    TYPE t_csv_row_rec IS RECORD(
+        s   VARCHAR2(4000)  -- the csv row
+        ,rn NUMBER          -- line number in the input
+    );
+    TYPE t_arr_csv_row_rec IS TABLE OF t_csv_row_rec;
+    TYPE t_curs_csv_row_rec IS REF CURSOR RETURN t_csv_row_rec;
+
+    TYPE t_csv_fields_rec IS RECORD(
+        arr ARR_VARCHAR2_UDT
+        ,rn NUMBER
+    );
+    TYPE t_arr_csv_fields_rec IS TABLE OF t_csv_fields_rec;
+
+    FUNCTION split_lines_to_fields(
+        p_curs          t_curs_csv_row_rec
+        ,p_separator    VARCHAR2    DEFAULT ','
+	    ,p_strip_dquote VARCHAR2    DEFAULT 'Y' -- also unquotes \" and "" pairs within the field to just "
+        ,p_keep_nulls   VARCHAR2    DEFAULT 'Y'
+    ) 
+    RETURN t_arr_csv_fields_rec
+    PIPELINED
+    ;
+```
+
+- *p_curs*
+    - A strongly typed REF CURSOR expected to return rows containing fields named *s* and *rn* for the CSV string and row_number respectively (as is returned by *split_clob_to_lines*).
+- *p_separator*
+    - A parameter passed to *split_csv* to parse the row
+- *p_strip_dquote*
+    - A parameter passed to *split_csv* to parse the row
+- *p_keep_nulls*
+    - A parameter passed to *split_csv* to parse the row
+
+See the use case [Convert Table of Records to Table of Fields Arrays](#convert-table-of-records-to-table-of-fields-arrays)
+for an example of using *split_lines_to_fields* as a chained pipeline row construct with *split_clob_to_lines*.
 
 ## create_ptt_csv
 

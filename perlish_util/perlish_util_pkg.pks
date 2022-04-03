@@ -1,5 +1,6 @@
 CREATE OR REPLACE PACKAGE perlish_util_pkg
 IS
+-- documentation at https://github.com/lee-lindley/plsql_utilities
     -- Oracle 21c will make these mostly obsolete.
 
     TYPE t_hash IS TABLE OF VARCHAR2(4000) INDEX BY VARCHAR2(4000);

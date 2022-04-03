@@ -63,7 +63,7 @@ Each component (or component group) has a separate directory, install.sql, and R
 - [app_csv_pkg](app_csv_pkg/)
     - Create CSV Rows from an Oracle query
     - Split CSV Record into Collection of Fields
-    - Read from a CSV CLOB as a Table of Records
+    - Read from a CSV CLOB as a Table of Records or Table of Fields Arrays
     - Create a Private Temporary (PTT) Table from a CSV CLOB
     - Generate a DML Deployment Script from Table data
 - [app_lob](app_lob/)

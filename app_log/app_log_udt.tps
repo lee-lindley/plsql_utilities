@@ -1,5 +1,7 @@
 CREATE OR REPLACE TYPE app_log_udt FORCE AS OBJECT (
 /* 
+-- documentation at https://github.com/lee-lindley/plsql_utilities
+
     Purpose: Provide general purpose logging capability for PL/SQL applications
 
 

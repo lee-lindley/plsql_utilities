@@ -1,4 +1,5 @@
 CREATE OR REPLACE TYPE app_zip_udt AUTHID CURRENT_USER AS OBJECT (
+-- documentation at https://github.com/lee-lindley/plsql_utilities
     /*
         DECLARE
             l_zip   BLOB;

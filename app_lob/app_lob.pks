@@ -1,7 +1,7 @@
 CREATE OR REPLACE PACKAGE app_lob
 AUTHID CURRENT_USER
 IS
-
+-- documentation at https://github.com/lee-lindley/plsql_utilities
     FUNCTION clobtoliterals(
         p_clob                      CLOB
         ,p_split_on_lf              VARCHAR2 DEFAULT 'n' -- back up to prior LF for end of chunk

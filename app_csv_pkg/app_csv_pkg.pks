@@ -1,6 +1,7 @@
 CREATE OR REPLACE PACKAGE app_csv_pkg 
 AUTHID CURRENT_USER
 AS
+-- documentation at https://github.com/lee-lindley/plsql_utilities
 /*
 MIT License
 
@@ -42,6 +43,13 @@ in your cursor/query/view, you must cast them to DATE for it to work.
         ,rn NUMBER          -- line number in the input
     );
     TYPE t_arr_csv_row_rec IS TABLE OF t_csv_row_rec;
+    TYPE t_curs_csv_row_rec IS REF CURSOR RETURN t_csv_row_rec;
+
+    TYPE t_csv_fields_rec IS RECORD(
+        arr &&d_arr_varchar2_udt.
+        ,rn NUMBER
+    );
+    TYPE t_arr_csv_fields_rec IS TABLE OF t_csv_fields_rec;
 
     --
     -- split a clob into a row for each line.
@@ -56,6 +64,31 @@ in your cursor/query/view, you must cast them to DATE for it to work.
     RETURN t_arr_csv_row_rec
     PIPELINED
     ;
+
+    /*
+        You call this one as a chained pipeline in SQL like this. What you do with the array is up to you.
+
+        SELECT t.arr
+        FROM TABLE(
+                app_csv_pkg.split_lines_to_fields(
+                    CURSOR(SELECT * 
+                           FROM TABLE( app_csv_pkg.split_clob_to_lines(:p_clob, p_skip_lines => 1) )
+                    )
+                    , p_separator => :p_separator, p_strip_dquote => :p_strip_dquote, p_keep_nulls => 'Y'
+                )
+        ) t
+
+    */
+    FUNCTION split_lines_to_fields(
+        p_curs          t_curs_csv_row_rec
+        ,p_separator    VARCHAR2    DEFAULT ','
+	    ,p_strip_dquote VARCHAR2    DEFAULT 'Y' -- also unquotes \" and "" pairs within the field to just "
+        ,p_keep_nulls   VARCHAR2    DEFAULT 'Y'
+    ) 
+    RETURN t_arr_csv_fields_rec
+    PIPELINED
+    ;
+
 	FUNCTION split_csv (
 	     p_s            CLOB
 	    ,p_separator    VARCHAR2    DEFAULT ','

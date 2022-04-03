@@ -1,5 +1,6 @@
 CREATE OR REPLACE TYPE perlish_util_udt FORCE 
 AS OBJECT (
+-- documentation at https://github.com/lee-lindley/plsql_utilities
 /*
 	MIT License
 	

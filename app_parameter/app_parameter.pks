@@ -1,4 +1,5 @@
 CREATE OR REPLACE PACKAGE app_parameter AS
+-- documentation at https://github.com/lee-lindley/plsql_utilities
     --
     -- Provides smart DML procedures 
     -- on table app_parameters. Parameter Facility users are encouraged to use this package

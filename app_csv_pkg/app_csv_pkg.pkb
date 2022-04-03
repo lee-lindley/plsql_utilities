@@ -103,8 +103,35 @@ SOFTWARE.
             v_pos_last := v_pos;
         END LOOP;
         RETURN;
-    END --split_clob_to_lines
+    END split_clob_to_lines
     ;
+    FUNCTION split_lines_to_fields(
+        p_curs          t_curs_csv_row_rec
+        ,p_separator    VARCHAR2    DEFAULT ','
+	    ,p_strip_dquote VARCHAR2    DEFAULT 'Y' -- also unquotes \" and "" pairs within the field to just "
+        ,p_keep_nulls   VARCHAR2    DEFAULT 'Y'
+    ) 
+    RETURN t_arr_csv_fields_rec
+    PIPELINED
+    IS
+        v_row       t_csv_fields_rec;
+        v_in_row    t_csv_row_rec;
+    BEGIN
+        LOOP
+            FETCH p_curs INTO v_in_row;
+            EXIT WHEN p_curs%NOTFOUND;
+            v_row.rn := v_in_row.rn;
+            v_row.arr := split_csv(v_in_row.s
+                                    , p_separator       => p_separator
+                                    , p_strip_dquote    => p_strip_dquote
+                                    , p_keep_nulls      => p_keep_nulls
+            );
+            PIPE ROW(v_row);
+        END LOOP;
+        RETURN;
+    END split_lines_to_fields
+    ;
+
 	FUNCTION split_csv (
 	     p_s            CLOB
 	    ,p_separator    VARCHAR2    DEFAULT ','
@@ -172,6 +199,7 @@ SOFTWARE.
 	        v_arr       &&d_arr_varchar2_udt. := &&d_arr_varchar2_udt.();
 	
 -- this is what you have to do in Oracle when you are NOT using transform_perl_regexp!!!
+-- If I ever have a need to edit and retest it, I'll redo it that way.
 
 	        -- we are going to match multiple times. After each match the position 
 	        -- will be after the last separator.
@@ -349,7 +377,7 @@ SOFTWARE.
 	                                 )
 	                    );
 	*/
-	END --split_csv
+	END split_csv
 	;
 
 
@@ -833,40 +861,137 @@ $if DBMS_DB_VERSION.VERSION >= 18 $then
 
     END fetch_rows;
 
-	PROCEDURE create_ptt_csv (
+/* This version is faster but unnecessarily complex. */
+--	PROCEDURE create_ptt_csv (
+--         --
+--         -- creates private temporary table "ora$ptt_csv" with columns named in first row of data (case preserved).
+--         -- from a CLOB containing CSV lines.
+--         -- All fields are varchar2(4000)
+--         --
+--	     p_clob         CLOB
+--	    ,p_separator    VARCHAR2    DEFAULT ','
+--	    ,p_strip_dquote VARCHAR2    DEFAULT 'Y' -- also unquotes \" and "" pairs within the field to just "
+--	) IS
+--        v_cols          perlish_util_udt; -- for manipulating column names into SQL statement
+--        v_sql           CLOB;
+--        v_first_row     VARCHAR2(32767);
+--        v_ins_curs      INT;
+--        v_num_rows      INT;
+--        v_last_row_cnt  BINARY_INTEGER := 0;
+--        v_col_cnt       BINARY_INTEGER;
+--        v_vals_1_row    &&d_arr_varchar2_udt.;  -- from split_csv on 1 line
+--        v_rows          DBMS_SQL.varchar2a;     -- from split_clob_to_lines fetch
+--        --
+--        -- variable number of columns, each of which has a bind array.
+--        --
+--        TYPE varchar2a_tab  IS TABLE OF DBMS_SQL.varchar2a INDEX BY BINARY_INTEGER;
+--        v_vals          varchar2a_tab;          -- array of columns each of which holds array of values
+--        --
+--        -- We get all but the header row when we read the clob in a loop.
+--        --
+--        CURSOR c_read_rows IS
+--            SELECT t.s
+--            FROM TABLE(app_csv_pkg.split_clob_to_lines(p_clob, p_skip_lines => 1))  t
+--            ;
+--    BEGIN
+--        BEGIN
+--            -- read the first row only
+--            SELECT s INTO v_first_row 
+--            FROM TABLE( app_csv_pkg.split_clob_to_lines(p_clob, p_max_lines => 1) )
+--            ;
+--            IF v_first_row IS NULL THEN
+--                raise_application_error(-20222,'app_csv_pkg.create_ptt_csv did not find csv rows in input clob.');
+--            END IF;
+--        EXCEPTION WHEN NO_DATA_FOUND THEN
+--            raise_application_error(-20222,'app_csv_pkg.create_ptt_csv did not find csv rows in input clob.');
+--        END;
+--        -- split the column header values into collection
+--        v_cols := perlish_util_udt(split_csv(v_first_row, p_separator => p_separator, p_strip_dquote => 'Y'));
+--        v_col_cnt := v_cols.arr.COUNT;
+--
+--        -- create the private global temporary table with "known" name and columns matching names found
+--        -- in csv first record
+--        --
+--        v_sql := 'DROP TABLE ora$ptt_csv';
+--        BEGIN
+--            EXECUTE IMMEDIATE v_sql;
+--        EXCEPTION WHEN OTHERS THEN NULL;
+--        END;
+--
+--        v_sql := 'CREATE PRIVATE TEMPORARY TABLE ora$ptt_csv(
+--'
+--            ||v_cols.map('"$_"    VARCHAR2(4000)').join('
+--,')
+--            ||'
+--)'
+--            ;
+--        DBMS_OUTPUT.put_line(v_sql);
+--        EXECUTE IMMEDIATE v_sql;
+--        
+--        -- 
+--        -- Dynamic sql for dbms_sql. will be used with bind arrays.
+--        -- Of note is that it reports conventional load even if specify append.
+--        -- I don't understand that as I've seen other reports that direct path load works.
+--        -- Does not seem to matter though.
+--        --
+--        v_sql := 'INSERT INTO ora$ptt_csv(
+--'
+--        ||v_cols.map('"$_"').join(', ')
+--        ||'
+--) VALUES (
+--'
+--        ||v_cols.map(':$##index_val##').join(', ') -- :1, :2, :3, etc...
+--        ||'
+--)';
+--        DBMS_OUTPUT.put_line(v_sql);
+--        v_ins_curs := DBMS_SQL.open_cursor;
+--        DBMS_SQL.parse(v_ins_curs, v_sql, DBMS_SQL.native);
+--
+--        OPEN c_read_rows;
+--        LOOP
+--            FETCH c_read_rows BULK COLLECT INTO v_rows LIMIT 100;
+--            EXIT WHEN v_rows.COUNT = 0;
+--            FOR i IN 1..v_rows.COUNT
+--            LOOP
+--                v_vals_1_row := app_csv_pkg.split_csv(v_rows(i), p_separator => p_separator, p_strip_dquote => p_strip_dquote, p_keep_nulls => 'Y');
+--                -- j is column number
+--                FOR j IN 1..v_col_cnt
+--                LOOP
+--                    v_vals(j)(i) := v_vals_1_row(j);
+--                END LOOP;
+--            END LOOP;
+--
+--            IF v_last_row_cnt != v_rows.COUNT THEN -- will be true on first loop iteration
+--                v_last_row_cnt := v_rows.COUNT;
+--                -- bind each column array. v_vals has an array for every column
+--                FOR j IN 1..v_col_cnt
+--                LOOP
+--                    DBMS_SQL.bind_array(v_ins_curs, ':'||TO_CHAR(j), v_vals(j), 1, v_last_row_cnt);
+--                END LOOP;
+--            END IF;
+--
+--            v_num_rows := DBMS_SQL.execute(v_ins_curs);
+--
+--        END LOOP;
+--        DBMS_SQL.close_cursor(v_ins_curs);
+--        CLOSE c_read_rows;
+--    END create_ptt_csv
+--    ;
+
+    PROCEDURE create_ptt_csv (
          --
-         -- creates private temporary table "ora$ptt_csv" with columns named in first row of data (case preserved).
-         -- from a CLOB containing CSV lines.
+         -- creates private temporary table "ora$ptt_csv" with columns named in first row of data case preserved.
          -- All fields are varchar2(4000)
          --
 	     p_clob         CLOB
 	    ,p_separator    VARCHAR2    DEFAULT ','
 	    ,p_strip_dquote VARCHAR2    DEFAULT 'Y' -- also unquotes \" and "" pairs within the field to just "
 	) IS
-        v_cols          perlish_util_udt; -- for manipulating column names into SQL statement
-        v_sql           CLOB;
-        v_first_row     VARCHAR2(32767);
-        v_ins_curs      INT;
-        v_num_rows      INT;
-        v_last_row_cnt  BINARY_INTEGER := 0;
-        v_col_cnt       BINARY_INTEGER;
-        v_vals_1_row    &&d_arr_varchar2_udt.;  -- from split_csv on 1 line
-        v_rows          DBMS_SQL.varchar2a;     -- from split_clob_to_lines fetch
-        --
-        -- variable number of columns, each of which has a bind array.
-        --
-        TYPE varchar2a_tab  IS TABLE OF DBMS_SQL.varchar2a INDEX BY BINARY_INTEGER;
-        v_vals          varchar2a_tab;          -- array of columns each of which holds array of values
-        --
-        -- We get all but the header row when we read the clob in a loop.
-        --
-        CURSOR c_read_rows IS
-            SELECT t.s
-            FROM TABLE(app_csv_pkg.split_clob_to_lines(p_clob, p_skip_lines => 1))  t
-            ;
+        v_cols      perlish_util_udt;
+        v_sql       CLOB;
+        v_first_row VARCHAR2(32767);
     BEGIN
         BEGIN
-            -- read the first row only
             SELECT s INTO v_first_row 
             FROM TABLE( app_csv_pkg.split_clob_to_lines(p_clob, p_max_lines => 1) )
             ;
@@ -878,8 +1003,8 @@ $if DBMS_DB_VERSION.VERSION >= 18 $then
         END;
         -- split the column header values into collection
         v_cols := perlish_util_udt(split_csv(v_first_row, p_separator => p_separator, p_strip_dquote => 'Y'));
-        v_col_cnt := v_cols.arr.COUNT;
 
+        --
         -- create the private global temporary table with "known" name and columns matching names found
         -- in csv first record
         --
@@ -898,56 +1023,38 @@ $if DBMS_DB_VERSION.VERSION >= 18 $then
             ;
         DBMS_OUTPUT.put_line(v_sql);
         EXECUTE IMMEDIATE v_sql;
-        
+
         -- 
-        -- Dynamic sql for dbms_sql. will be used with bind arrays.
-        -- Of note is that it reports conventional load even if specify append.
-        -- I don't understand that as I've seen other reports that direct path load works.
-        -- Does not seem to matter though.
+        -- Populate the private global temporary table from all but the first line in the clob.
+        -- Binding the clob should be relatively efficient in just passing a pointer.
+        -- Even though it has an APPEND hint, the database reports it as a conventional load. 
+        -- I'm not sure what's up with that, but nothing I can do about it.
         --
-        v_sql := 'INSERT INTO ora$ptt_csv(
-'
-        ||v_cols.map('"$_"').join(', ')
+        v_sql := q'[INSERT /*+ APPEND WITH_PLSQL */ INTO ora$ptt_csv 
+WITH
+a AS (
+    SELECT perlish_util_udt(t.arr) AS pu
+    FROM TABLE(
+                app_csv_pkg.split_lines_to_fields(
+                    CURSOR(SELECT * 
+                           FROM TABLE( app_csv_pkg.split_clob_to_lines(:p_clob, p_skip_lines => 1) )
+                    )
+                    , p_separator => :p_separator, p_strip_dquote => :p_strip_dquote, p_keep_nulls => 'Y'
+                )
+    ) t
+) SELECT ]'
+        -- must use table alias and fully qualify object name with it to be able to call function or get attribute of object
+        -- Thus alias x for a and use x.p.get vs a.p.get.
+        ||v_cols.map('X.pu.get($##index_val##) AS "$_"').join('
+,')
         ||'
-) VALUES (
-'
-        ||v_cols.map(':$##index_val##').join(', ') -- :1, :2, :3, etc...
-        ||'
-)';
+FROM a X';
         DBMS_OUTPUT.put_line(v_sql);
-        v_ins_curs := DBMS_SQL.open_cursor;
-        DBMS_SQL.parse(v_ins_curs, v_sql, DBMS_SQL.native);
+        EXECUTE IMMEDIATE v_sql USING  p_clob, p_separator, p_strip_dquote;
 
-        OPEN c_read_rows;
-        LOOP
-            FETCH c_read_rows BULK COLLECT INTO v_rows LIMIT 100;
-            EXIT WHEN v_rows.COUNT = 0;
-            FOR i IN 1..v_rows.COUNT
-            LOOP
-                v_vals_1_row := app_csv_pkg.split_csv(v_rows(i), p_separator => p_separator, p_strip_dquote => p_strip_dquote, p_keep_nulls => 'Y');
-                -- j is column number
-                FOR j IN 1..v_col_cnt
-                LOOP
-                    v_vals(j)(i) := v_vals_1_row(j);
-                END LOOP;
-            END LOOP;
-
-            IF v_last_row_cnt != v_rows.COUNT THEN -- will be true on first loop iteration
-                v_last_row_cnt := v_rows.COUNT;
-                -- bind each column array. v_vals has an array for every column
-                FOR j IN 1..v_col_cnt
-                LOOP
-                    DBMS_SQL.bind_array(v_ins_curs, ':'||TO_CHAR(j), v_vals(j), 1, v_last_row_cnt);
-                END LOOP;
-            END IF;
-
-            v_num_rows := DBMS_SQL.execute(v_ins_curs);
-
-        END LOOP;
-        DBMS_SQL.close_cursor(v_ins_curs);
-        CLOSE c_read_rows;
-    END -- create_ptt_csv
+    END create_ptt_csv
     ;
+
 
     -- depends on same date/number defaults on deploy system as on one that creates this
     -- you might wind up messing with the column lists and doing explicit conversions
