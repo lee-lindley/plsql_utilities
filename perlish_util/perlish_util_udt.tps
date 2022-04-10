@@ -34,7 +34,20 @@ AS OBJECT (
     ) RETURN SELF AS RESULT
     */
     ,CONSTRUCTOR FUNCTION perlish_util_udt(
-        p_csv   VARCHAR2
+         p_csv              VARCHAR2
+        ,p_separator        VARCHAR2    DEFAULT ','
+	    ,p_keep_nulls       VARCHAR2    DEFAULT 'N'
+	    ,p_strip_dquote     VARCHAR2    DEFAULT 'Y' -- also unquotes \" and "" pairs within the field to just "
+        ,p_expected_cnt     NUMBER      DEFAULT 0
+
+    ) RETURN SELF AS RESULT
+    ,CONSTRUCTOR FUNCTION perlish_util_udt(
+         p_csv              CLOB
+        ,p_separator        VARCHAR2    DEFAULT ','
+	    ,p_keep_nulls       VARCHAR2    DEFAULT 'N'
+	    ,p_strip_dquote     VARCHAR2    DEFAULT 'Y' -- also unquotes \" and "" pairs within the field to just "
+        ,p_expected_cnt     NUMBER      DEFAULT 0
+
     ) RETURN SELF AS RESULT
     -- all are callable in a chain if they return perlish_util_udt; otherwise must be end of chain
     -- get the object member collection

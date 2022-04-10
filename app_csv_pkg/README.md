@@ -434,24 +434,30 @@ COMMIT;
 ## split_csv
 
 ```sql
-    FUNCTION split_csv (
-	     p_s            CLOB
-	    ,p_separator    VARCHAR2    DEFAULT ','
-	    ,p_keep_nulls   VARCHAR2    DEFAULT 'N'
-	    ,p_strip_dquote VARCHAR2    DEFAULT 'Y' -- also unquotes \" and "" pairs within the field to just "
-    ) RETURN &&d_arr_varchar2_udt. 
-    DETERMINISTIC;
+	PROCEDURE split_csv (
+         po_arr OUT NOCOPY  arr_varchar2_udt
+	    ,p_s                CLOB
+	    ,p_separator        VARCHAR2    DEFAULT ','
+	    ,p_keep_nulls       VARCHAR2    DEFAULT 'N'
+	    ,p_strip_dquote     VARCHAR2    DEFAULT 'Y' -- also unquotes \" and "" pairs within the field to just "
+        ,p_expected_cnt     NUMBER      DEFAULT 0 -- will get an array with at least this many elements
+	);
 ```
+
+- *po_arr*
+    - a collection that will be populated by the procedure
 - *p_s*
     - A string containing a CSV record
 - *p_separator*
-    - The character (well, you could use a multi-character separator, but don't) between fields. Usually comma, but pipe is common as well.
+    - The character between fields. Usually comma, but pipe is common as well. A multi-character value will not work as expected.
 - *p_keep_nulls*
     - Whether or not to put a NULL value into the returned array when an empty field is encountered.
 - *p_strip_dquote*
     - CSV fields may be enclosed in double quotes. The default behavior is to "de-quote" the string.
+- *p_expected_cnt*
+    - Collection is preallocated rather than extending one by one. Performance impact is minimal.
 
-A function to split a comma separated value string that follows RFC4180 
+A procedure to split a comma separated value string that follows RFC4180 
 into an array of strings.
 
 Treat input string *p_s* as following the Comma Separated Values (csv) format 
@@ -470,6 +476,30 @@ See [CSV Specification/RFC](https://www.loc.gov/preservation/digital/formats/fdd
 The problem turned out to be much more complex than I thought when starting the work.
 If you like playing with regular expressions, take a gander and tell me if you can 
 do better. (really! I like to learn.)
+
+```sql
+    FUNCTION split_csv (
+	     p_s            CLOB
+	    ,p_separator    VARCHAR2    DEFAULT ','
+	    ,p_keep_nulls   VARCHAR2    DEFAULT 'N'
+	    ,p_strip_dquote VARCHAR2    DEFAULT 'Y' -- also unquotes \" and "" pairs within the field to just "
+        ,p_expected_cnt NUMBER      DEFAULT 0 -- will get an array with at least this many elements
+    ) RETURN &&d_arr_varchar2_udt. 
+    DETERMINISTIC;
+```
+Calls PROCEDURE *split_csv* and returns the collection.
+
+```sql
+    FUNCTION split_csv (
+	     p_s            VARCHAR2
+	    ,p_separator    VARCHAR2    DEFAULT ','
+	    ,p_keep_nulls   VARCHAR2    DEFAULT 'N'
+	    ,p_strip_dquote VARCHAR2    DEFAULT 'Y' -- also unquotes \" and "" pairs within the field to just "
+        ,p_expected_cnt NUMBER      DEFAULT 0 -- will get an array with at least this many elements
+    ) RETURN &&d_arr_varchar2_udt. 
+    DETERMINISTIC;
+```
+Explicitly converts the input VARCHAR2 source string to CLOB and calls PROCEDURE *split_csv*. Returns the collection.
 
 ## split_clob_to_lines
 
@@ -613,7 +643,7 @@ All fields in the PTT are VARCHAR2(4000).
 The data from the rest of the rows/lines after the header row
 is loaded into these columns. If all of your lines do not have at least as many fields 
 as there are column names in the first record,
-*create_ptt_csv* will fail on the insert. You may have NULL values in the data (represented by ,,).
+*create_ptt_csv* will provide NULL values. You may have NULL values in the data (represented by ,,).
 
 > Quoted literals are maximum length 32767 (unless you are doing some non-standard things with your database).
 > If the CLOB you want to pass into the procedure is larger than that, and you need to represent it as a quoted

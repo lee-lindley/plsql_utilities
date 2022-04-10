@@ -90,12 +90,33 @@ in your cursor/query/view, you must cast them to DATE for it to work.
     ;
 
 	FUNCTION split_csv (
-	     p_s            CLOB
-	    ,p_separator    VARCHAR2    DEFAULT ','
-	    ,p_keep_nulls   VARCHAR2    DEFAULT 'N'
-	    ,p_strip_dquote VARCHAR2    DEFAULT 'Y' -- also unquotes \" and "" pairs within the field to just "
+	     p_s                CLOB
+	    ,p_separator        VARCHAR2    DEFAULT ','
+	    ,p_keep_nulls       VARCHAR2    DEFAULT 'N'
+	    ,p_strip_dquote     VARCHAR2    DEFAULT 'Y' -- also unquotes \" and "" pairs within the field to just "
+        ,p_expected_cnt     NUMBER      DEFAULT 0
 	) RETURN &&d_arr_varchar2_udt. 
     DETERMINISTIC
+    ;
+
+	FUNCTION split_csv (
+	     p_s                VARCHAR2
+	    ,p_separator        VARCHAR2    DEFAULT ','
+	    ,p_keep_nulls       VARCHAR2    DEFAULT 'N'
+	    ,p_strip_dquote     VARCHAR2    DEFAULT 'Y' -- also unquotes \" and "" pairs within the field to just "
+        ,p_expected_cnt     NUMBER      DEFAULT 0
+	) RETURN &&d_arr_varchar2_udt. 
+    DETERMINISTIC
+    ;
+
+	PROCEDURE split_csv (
+         po_arr OUT NOCOPY  &&d_arr_varchar2_udt.
+	    ,p_s                CLOB
+	    ,p_separator        VARCHAR2    DEFAULT ','
+	    ,p_keep_nulls       VARCHAR2    DEFAULT 'N'
+	    ,p_strip_dquote     VARCHAR2    DEFAULT 'Y' -- also unquotes \" and "" pairs within the field to just "
+        ,p_expected_cnt     NUMBER      DEFAULT 0 -- will get an array with at least this many elements
+	) 
     ;
 
 $if DBMS_DB_VERSION.VERSION >= 18 $then

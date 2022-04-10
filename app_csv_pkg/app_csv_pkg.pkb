@@ -22,26 +22,57 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
+    gc_csv_regexp           VARCHAR2(1024) := PERLISH_UTIL_UDT.transform_perl_regexp(q'{
+	        (                       -- begin capture of \1 which is what we will return.
+	                                -- It can be NULL!
+	          "                     -- one double quote char binding start of the match
+	          (                     -- just grouping
+	                                --
+	                                -- order of these next things matters. Look for longest one first
+	                                --
+                ""                  -- literal "" which is a quoted quote 
+	                                -- within dquote string
+	            |                       
+	            \\"                 -- Then how about a backwacked double
+	                                -- quote???
+	            |
+	            [^"]                -- char that is not a closing quote
+	          )*                    -- 0 or more of those chars greedy for
+	                                -- field between quotes
+	                                --
+	          "                     -- now the closing dquote 
+	          |                     -- if not a double quoted string, try plain one
+	                                --
+	                                -- if the capture is not going to be null or a "*" string, then must start 
+	                                -- with a char that is not a separator or a "
+	                                --
+	          [^"__p_separator__]   -- one non-sep, non-" character to bind start of match
+	                                --
+	          (                     -- just grouping
+	                                --
+	                                -- order of these things matters. Look for longest one first
+	                                --
+	            \\[\__p_separator__] -- look for a backwacked separator
+	            |                       
+	            [^__p_separator__]  -- a char that is not a separator
+	          )*                    -- 0 or more of these non-sep, non backwack
+	                                -- sep chars after one starting (bound) a 
+	                                -- char 1 that is neither sep nor "
+	                                --
+	        )?                      -- end capture of our field \1, and we want 0 or 1
+	                                -- of them because we can have ',,'
+	                                --
+	                                -- Since we allowed zero matches in the above, regexp_subst can return null
+	                                -- or just spaces in the referenced grouped string \1
+	                                --
+	        ([\__p_separator__]|$)   -- now we must find a literal separator or be at 
+	                                -- end of string. This separator is included and 
+	                                -- consumed at the end of our match
+            }'
+        ) -- end transform_perl_regexp
+	    ;
 
-    -- split a clob into a row for each line.
-    -- Handle case where a "line" can have embedded LF chars per RFC for CSV format
-    -- Throw out completely blank lines
-    --
-    FUNCTION split_clob_to_lines(
-        p_clob          CLOB
-        ,p_max_lines    NUMBER DEFAULT NULL
-        ,p_skip_lines   NUMBER DEFAULT NULL
-    )
-    RETURN t_arr_csv_row_rec
-    PIPELINED
-    IS
-        v_rc            BINARY_INTEGER := 0;
-        v_pos           BINARY_INTEGER;
-        v_pos_last      BINARY_INTEGER := 1;
-        v_len           BINARY_INTEGER;
-        v_row           t_csv_row_rec;
-
-        v_rows_regexp   VARCHAR2(1024) := perlish_util_udt.transform_perl_regexp('
+    gc_rows_regexp  VARCHAR2(1024) := perlish_util_udt.transform_perl_regexp('
 (                               # capture in \1
   (                             # going to group 0 or more of these things
     "                           # double quoted string start
@@ -74,11 +105,29 @@ SOFTWARE.
     $|\n                        # require match newline or string end 
 )                               # close grouping
 ');
+    -- split a clob into a row for each line.
+    -- Handle case where a "line" can have embedded LF chars per RFC for CSV format
+    -- Throw out completely blank lines
+    --
+    FUNCTION split_clob_to_lines(
+        p_clob          CLOB
+        ,p_max_lines    NUMBER DEFAULT NULL
+        ,p_skip_lines   NUMBER DEFAULT NULL
+    )
+    RETURN t_arr_csv_row_rec
+    PIPELINED
+    IS
+        v_rc            BINARY_INTEGER := 0;
+        v_pos           BINARY_INTEGER;
+        v_pos_last      BINARY_INTEGER := 1;
+        v_len           BINARY_INTEGER;
+        v_row           t_csv_row_rec;
+
     BEGIN
 --DBMS_OUTPUT.put_line('length: '||LENGTH(p_clob));
         LOOP
             -- v_pos is the character position AFTER the match
-            v_pos := REGEXP_INSTR(p_clob, v_rows_regexp, v_pos_last, 1, 1);
+            v_pos := REGEXP_INSTR(p_clob, gc_rows_regexp, v_pos_last, 1, 1);
 --DBMS_OUTPUT.put_line('vpos: '||v_pos||' v_pos_last: '||v_pos_last);
             EXIT WHEN v_pos = 0;
             v_rc := v_rc + 1;
@@ -121,10 +170,12 @@ SOFTWARE.
             FETCH p_curs INTO v_in_row;
             EXIT WHEN p_curs%NOTFOUND;
             v_row.rn := v_in_row.rn;
-            v_row.arr := split_csv(v_in_row.s
-                                    , p_separator       => p_separator
-                                    , p_strip_dquote    => p_strip_dquote
-                                    , p_keep_nulls      => p_keep_nulls
+            split_csv(
+                  po_arr            => v_row.arr
+                , p_s               => v_in_row.s
+                , p_separator       => p_separator
+                , p_strip_dquote    => p_strip_dquote
+                , p_keep_nulls      => p_keep_nulls
             );
             PIPE ROW(v_row);
         END LOOP;
@@ -133,254 +184,117 @@ SOFTWARE.
     ;
 
 	FUNCTION split_csv (
-	     p_s            CLOB
-	    ,p_separator    VARCHAR2    DEFAULT ','
-	    ,p_keep_nulls   VARCHAR2    DEFAULT 'N'
-	    ,p_strip_dquote VARCHAR2    DEFAULT 'Y' -- also unquotes \" and "" pairs within the field to just "
+	     p_s                CLOB
+	    ,p_separator        VARCHAR2    DEFAULT ','
+	    ,p_keep_nulls       VARCHAR2    DEFAULT 'N'
+	    ,p_strip_dquote     VARCHAR2    DEFAULT 'Y' -- also unquotes \" and "" pairs within the field to just "
+        ,p_expected_cnt     NUMBER      DEFAULT 0 -- will get an array with at least this many elements
 	) RETURN &&d_arr_varchar2_udt. 
     DETERMINISTIC
-	-- when p_s IS NULL, returns initialized collection with COUNT=0
-	--
-	/*
-	
-	Treat input string p_s as following the Comma Separated Values (csv) format 
-	(not delimited, but separated) and break it into an array of strings (fields) 
-	returned to the caller. This is overkill for the most common case
-	of simple separated strings that do not contain the separator char and are 
-	not quoted, but if they are double quoted fields, this will handle them 
-	appropriately including the quoting of " within the field.
-	
-	We comply with RFC4180 on CSV format (for what it is worth) while also 
-	handling the mentioned common variants like backwacked quotes and 
-	backwacked separators in non-double quoted fields that Excel produces.
-	
-	See https://www.loc.gov/preservation/digital/formats/fdd/fdd000323.shtml
-	
-	*/
-	--
-	/*
-	
-	USAGE:
-	    DECLARE
-	        v_arr_varchar2  &&d_arr_varchar2_udt.;
-	        v_s             VARCHAR2(256) 
-	            := '123.55,,abcdef,an excel unquoted string with a backwacked comma\, plus more in one field,"a true csv double quoted field with embedded "" and trailing space "';
-	    BEGIN
-	        v_arr_varchar2 := app_csv_pkg.split_csv(v_s);
-	        FOR i IN v_arr_varchar2.FIRST..v_arr_varchar2.LAST
-	        LOOP
-	            DBMS_OUTPUT.put_line(v_arr_varchar2(i));
-	        END LOOP;
-	    END;
-	    --
-	    -- or --
-	    --
-	    SELECT * FROM TABLE(app_csv_pkg.split_csv('123.55,,abcdef,an excel unquoted string with a backwacked comma\, plus more in one field,"a true csv double quoted field with embedded "" and trailing space "'
-	                                    ,p_keep_nulls => 'Y', p_strip_dquote => 'N'
-	                                    )
-	                       );
-	     -- returns:
-	    COLUMN_VALUE
-	    123.55
-	    (null)
-	    abcdef
-	    an excel unquoted string with a backwacked comma, plus more in one field
-	    "a true csv double quoted field with embedded "" and trailing space "
-	
-	Note: We are treating the string as SEPARATED, not DELIMITED. That matters 
-	        when the last char is a separator char
-	
-	*/
-	IS
-	        v_str       VARCHAR2(32767);    -- individual parsed values cannot exceed 4000 chars
-	        v_occurence BINARY_INTEGER := 1;
-	        v_i         BINARY_INTEGER := 0;
-	        v_cnt       BINARY_INTEGER;
-	        v_arr       &&d_arr_varchar2_udt. := &&d_arr_varchar2_udt.();
-	
--- this is what you have to do in Oracle when you are NOT using transform_perl_regexp!!!
--- If I ever have a need to edit and retest it, I'll redo it that way.
+    IS
+        v_arr           &&d_arr_varchar2_udt.;
+    BEGIN
+        split_csv(v_arr, p_s, p_separator, p_keep_nulls, p_strip_dquote, p_expected_cnt);
+        RETURN v_arr;
+    END split_csv;
 
-	        -- we are going to match multiple times. After each match the position 
-	        -- will be after the last separator.
-	        v_regexp    VARCHAR2(128) :=
-	'\s*'                       -- optional whitespace before anything, or after
-	                            -- last delim
-	                            --
-	||'('                       -- begin capture of \1 which is what we will return.
-	                            -- It can be NULL!
-	                            --
-	||    '"'                       -- one double quote char binding start of the match
-	||        '('                       -- just grouping
-	--
-	-- order of these next things matters. Look for longest one first
-	--
-	||            '""'                      -- literal "" which is a quoted quote 
-	                                        -- within dquote string
-	||            '|'                       
-	||            '\\"'                     -- Then how about a backwacked double
-	                                        -- quote???
-	||            '|'
-	||            '[^"]'                    -- char that is not a closing quote
-	||        ')*'                      -- 0 or more of those chars greedy for
-	                                    -- field between quotes
-	                                    --
-	||    '"'                       -- now the closing dquote 
-	||    '|'                       -- if not a double quoted string, try plain one
-	--
-	-- if the capture is not going to be null or a "*" string, then must start 
-	-- with a char that is not a separator or a "
-	--
-	||    '[^"'||p_separator||']'   -- so one non-sep, non-" character to bind 
-	                                -- start of match
-	                                --
-	||        '('                       -- just grouping
-	--
-	-- order of these things matters. Look for longest one first
-	--
-	||            '\\'||p_separator         -- look for a backwacked separator
-	||            '|'                       
-	||            '[^'||p_separator||']'    -- a char that is not a separator
-	||        ')*'                      -- 0 or more of these non-sep, non backwack
-	                                    -- sep chars after one starting (bound) a 
-	                                    -- char 1 that is neither sep nor "
-	                                    --
-	||')?'                      -- end capture of our field \1, and we want 0 or 1
-	                            -- of them because we can have ',,'
-	--
-	-- Since we allowed zero matches in the above, regexp_subst can return null
-	-- or just spaces in the referenced grouped string \1
-	--
-	||'('||p_separator||'|$)'   -- now we must find a literal separator or be at 
-	                            -- end of string. This separator is included and 
-	                            -- consumed at the end of our match, but we do not
-	                            -- include it in what we return
-	;
-	--
-	--
-	--
-	--v_log app_log_udt := app_log_udt('TEST');
+	FUNCTION split_csv (
+	     p_s                VARCHAR2
+	    ,p_separator        VARCHAR2    DEFAULT ','
+	    ,p_keep_nulls       VARCHAR2    DEFAULT 'N'
+	    ,p_strip_dquote     VARCHAR2    DEFAULT 'Y' -- also unquotes \" and "" pairs within the field to just "
+        ,p_expected_cnt     NUMBER      DEFAULT 0 -- will get an array with at least this many elements
+	) RETURN &&d_arr_varchar2_udt. 
+    DETERMINISTIC
+    IS
+        v_arr           &&d_arr_varchar2_udt.;
+        v_s             CLOB := p_s; -- would be implicitly converted anyway
+    BEGIN
+        split_csv(v_arr, v_s, p_separator, p_keep_nulls, p_strip_dquote, p_expected_cnt);
+        RETURN v_arr;
+    END split_csv;
+
+    PROCEDURE split_csv (
+         po_arr OUT NOCOPY  &&d_arr_varchar2_udt.
+	    ,p_s                CLOB
+	    ,p_separator        VARCHAR2    DEFAULT ','
+	    ,p_keep_nulls       VARCHAR2    DEFAULT 'N'
+	    ,p_strip_dquote     VARCHAR2    DEFAULT 'Y' -- also unquotes \" and "" pairs within the field to just "
+        ,p_expected_cnt     NUMBER      DEFAULT 0 -- will get an array with at least this many elements
+	) 
+	-- when p_s IS NULL, returns initialized collection with COUNT=0
+	IS
+        v_str                   VARCHAR2(32767);    -- individual parsed values cannot exceed 4000 chars
+        v_i                     BINARY_INTEGER := 0;
+        v_pos                   BINARY_INTEGER;
+        v_pos_last              BINARY_INTEGER := 1;
+        v_last_had_separator    BINARY_INTEGER := 0;
+        v_len                   BINARY_INTEGER;
+        v_regexp                VARCHAR2(1024) := REPLACE(gc_csv_regexp, '__p_separator__', p_separator);
 	BEGIN
-	        IF p_s IS NULL THEN
-	            RETURN v_arr; -- will be empty
-	        END IF;
-	--v_log.log_p(TO_CHAR(REGEXP_COUNT(p_s,v_regexp)));
-	        -- since our matched group may be a null string that regexp_substr 
-	        -- returns before we are done, we cannot rely on the condition that 
-	        -- regexp_substr returns null to know we are done. 
-	        -- That is the traditional way to loop using regexp_subst, but that 
-	        -- will not work for us. So, we first have to find out how many fields
-	        -- we have including null captures and run regexp_substr that many times
-	        v_cnt := REGEXP_COUNT(p_s, v_regexp);
-	        --
-	        -- A "delimited" string, as opposed to a separated string, will end in
-	        -- a delimiter char. In other words there is always one "delimiter"
-	        -- after every field. But the most common case of CSV is a "separator"
-	        -- style which does not have separator at the end, and if we actually
-	        -- have a separator at the end of the string, it is because the last
-	        -- field value was NULL!!!! In that scenario with the trailing separator
-	        -- we want to count that NULL and include it in our array.
-	        -- In the case where the last char is not a "separator" char, 
-	        -- the regexp will match one last time on the zero-width $. That is an
-	        -- oddity of how it is constructed.
-	        -- For our purposes of expecting a separated string, not delimited,
-	        -- we need to reduce the count by 1 for the case where the last
-	        -- character is NOT a separator. 
-	        --
-	        -- I do not know what to say. I was very dissapointed I could not handle
-	        -- all the logic in the regexp, but Oracle regexp are just not as
-	        -- powerful as the ones in Perl which have negative/positive lookahead
-	        -- and lookbehinds plus the concept of "POS()" so you can match against
-	        -- the start of the substr like ^ does for the whole thing. Without
-	        -- those features, this was very difficult. It is also possible I am
-	        -- missing something important and a regexp expert could do it more
-	        -- simply. I would not mind being corrected and shown a better way.
-	        --
-	        IF SUBSTR(p_s,-1,1) != p_separator THEN -- if last char of string is not the separator
-	            v_cnt := v_cnt - 1;
-	        END IF;
-	
-	        FOR v_occurence IN 1..v_cnt
-	        LOOP
-	            v_str := REGEXP_SUBSTR(
-	                    p_s                 -- the string we are parsing
-	                    ,v_regexp           -- the regexp we built using the chosen separator (like ',')
-	                    ,1                  -- starting at the beginning of the string on the first call
-	                    ,v_occurence        -- but on subsequent calls we will get 2nd, then 3rd, etc, match of the pattern
-	                    ,''                 -- no regexp modifiers
-	                    ,1                  -- we want the \1 grouping match returned, not the entire expression
-	            );
-	--v_log.log_p(TO_CHAR(v_occurence)||' x'||v_str||'x');
-	
-	            -- cannot use this test for NULL like the man page for regexp_substr
-	            -- shows because our grouped match can be null as a valid value
-	            -- while still parsing the string.
-	            --EXIT WHEN v_str IS NULL;
-	
-	            v_str := TRIM(v_str);                               -- if it is a double quoted string, can still have leading/trailing spaces in the value
-	            IF v_str IS NOT NULL OR p_keep_nulls = 'Y' THEN     -- otherwise it was an empty string which we discard.
-	                -- we WILL add this to the array
-	                IF v_str IS NULL THEN
-	                    NULL;
-	                ELSIF SUBSTR(v_str,1,1) = '"' THEN                 -- it IS a double quoted string
-	                    IF p_strip_dquote = 'Y' THEN
-	                        -- get rid of starting and ending " char
-	                        -- replace any \" or "" pairs with single "
+        po_arr := &&d_arr_varchar2_udt.();
+        IF p_expected_cnt > 0 THEN
+            po_arr.EXTEND(p_expected_cnt);
+        END IF;
+        IF p_s IS NOT NULL THEN
+            LOOP
+                -- get end char of matching string
+                v_pos := REGEXP_INSTR(p_s, v_regexp
+                            , v_pos_last    /*position*/
+                            , 1             /*occurence*/ 
+                            , 1             /*return_opt*/ 
+                         ); 
+                -- this regexp WILL match until it gets to the end of the string. Once v_pos_last 
+                -- is on a character past the end of the string, it will return 0.
+                EXIT WHEN v_pos = 0;
+                -- whether or not we matched a separator character at the end of the token. Last one
+                -- will match $ instead (unless the last field was NULL). We need to know that both
+                -- here and after the loop
+                v_last_had_separator := CASE WHEN SUBSTR(p_s, v_pos - 1, 1) = p_separator THEN 1 ELSE 0 END;
+                v_len := (v_pos - v_pos_last) - v_last_had_separator;
+                IF v_len > 0 THEN
+                    v_str := TRIM(SUBSTR(p_s, v_pos_last, v_len)); -- could still be null after trim
+                ELSE
+                    v_str := NULL;
+                END IF;
+                IF v_str IS NOT NULL OR p_keep_nulls = 'Y' THEN
+                    IF SUBSTR(v_str,1,1) = '"' THEN
+                        IF p_strip_dquote = 'Y' THEN -- otherwise keep everything after trim which means should end on dquote
 	                        v_str := REGEXP_REPLACE(v_str, 
-	                                    '^"|"$'         -- leading " or ending "
-	                                    ||'|["\\]'  -- or one of chars " or \
-	                                        ||'(")'     -- that is followed by a " and we capture that one in \1
-	                                    ,'\1'           -- We put any '"' we captured back without the backwack or " quote
+	                                    '^"|"$'         -- leading '"' or ending '"'
+	                                        ||'|["\\]'  -- or one of chars '"' or \
+	                                        ||'(")'     -- that is followed by a '"' and we capture that one in \1
+	                                    ,'\1'           -- We put any '"' we captured back without the backwack or '"' quote
 	                                    ,1              -- start at position 1 in v_str
 	                                    ,0              -- 0 occurence means replace all of these we find
 	                                ); 
-	                    END IF;
-	                ELSE 
-                        -- not a double quoted string so unbackwack separators inside it. Excel format
+                        END IF;
+                    ELSIF v_str IS NOT NULL THEN
+                        -- unbackwack the separator char in the token
                         v_str := REGEXP_REPLACE(v_str, '\\('||p_separator||')', '\1', 1, 0);
-	                END IF; -- end if double quoted string
-	                -- Note that if it was an empty double quoted string we are still putting it into the array.
-	                -- So, you can still get nulls in the case they are given to you as "" and we stripped the dquotes,
-	                -- even if you asked to not keep nulls. Cause an empty string is not NULL. Uggh.
-	                v_i := v_i + 1;
-	                v_arr.EXTEND;
-	                -- this will raise an error if the value is more than 4000 chars
-	                v_arr(v_i) := v_str;
-	            END IF; -- end not an empty string or we want to include NULL
-	        END LOOP;
-	        RETURN v_arr;
-	/*
-	Unit tests:
-	 select * from TABLE(app_csv_pkg.split_csv('"""whatev,er"" and\"", test 2,, abc,'
-	                                      ,p_keep_nulls => 'N', p_strip_dquote => 'Y'
-	                                   )
-	                     );
-	
-	 -- see impact of trailing comma on number of fields
-	 select * from TABLE(app_csv_pkg.split_csv('"""whatev,er"" and\"", , test 2,, test3 ,abc,'
-	                                      ,p_keep_nulls => 'Y', p_strip_dquote => 'N'
-	                                   )
-	                     );
-	
-	 -- see impact of NO trailing comma on number of fields
-	 select * from TABLE(app_csv_pkg.split_csv('"""whatev,er"" and\"", , test 2,, test3 ,abc'
-	                                      ,p_keep_nulls => 'Y', p_strip_dquote => 'N'
-	                                   )
-	                     );
-	
-	 -- backwacked commas in non quoted strings plus trailing ,
-	 select * from TABLE(app_csv_pkg.split_csv('"""whatev,e\"r"" and\"", , te\,st 2,, test3\, ,abc,'
-	                                      ,p_keep_nulls => 'Y', p_strip_dquote => 'N'
-	                                   )
-	                     );
-	 SELECT * FROM TABLE(app_csv_pkg.split_csv('123.55,,abcdef,an excel unquoted string with a backwacked comma\, plus more in one field,"a true csv double quoted field with embedded "" and trailing space "'
-	                                 )
-	                    );
-	*/
+                    END IF;
+
+                    v_i := v_i + 1;
+                    IF v_i > p_expected_cnt THEN -- otherwise we already have room
+	                    po_arr.EXTEND;
+                    END IF;
+	                po_arr(v_i) := v_str;
+                END IF; -- done keeping token as array entry
+
+                v_pos_last := v_pos; -- walk the string to next token
+
+            END LOOP;
+
+            IF v_last_had_separator = 1 AND p_keep_nulls = 'Y' THEN -- trailing null field value
+                v_i := v_i + 1;
+                IF v_i > p_expected_cnt THEN -- otherwise we already have room
+                    po_arr.EXTEND;
+                END IF;
+                po_arr(v_i) := NULL; -- do not think this is necessary, but make it explicit
+            END IF;
+        END IF; -- end if input string not null
 	END split_csv
 	;
-
-
 
 $if DBMS_DB_VERSION.VERSION >= 18 $then
     FUNCTION get_ptf_query_string(
@@ -1002,7 +916,7 @@ $if DBMS_DB_VERSION.VERSION >= 18 $then
             raise_application_error(-20222,'app_csv_pkg.create_ptt_csv did not find csv rows in input clob.');
         END;
         -- split the column header values into collection
-        v_cols := perlish_util_udt(split_csv(v_first_row, p_separator => p_separator, p_strip_dquote => 'Y'));
+        v_cols := perlish_util_udt(v_first_row, p_separator => p_separator, p_strip_dquote => 'Y');
 
         --
         -- create the private global temporary table with "known" name and columns matching names found
@@ -1031,8 +945,7 @@ $if DBMS_DB_VERSION.VERSION >= 18 $then
         -- I'm not sure what's up with that, but nothing I can do about it.
         --
         v_sql := q'[INSERT /*+ APPEND WITH_PLSQL */ INTO ora$ptt_csv 
-WITH
-a AS (
+WITH a AS (
     SELECT perlish_util_udt(t.arr) AS pu
     FROM TABLE(
                 app_csv_pkg.split_lines_to_fields(
@@ -1050,7 +963,7 @@ a AS (
         ||'
 FROM a X';
         DBMS_OUTPUT.put_line(v_sql);
-        EXECUTE IMMEDIATE v_sql USING  p_clob, p_separator, p_strip_dquote;
+        EXECUTE IMMEDIATE v_sql USING p_clob, p_separator, p_strip_dquote;
 
     END create_ptt_csv
     ;

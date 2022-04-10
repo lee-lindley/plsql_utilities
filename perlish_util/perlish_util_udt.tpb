@@ -37,13 +37,47 @@ CREATE OR REPLACE TYPE BODY perlish_util_udt AS
     END;
     */
     CONSTRUCTOR FUNCTION perlish_util_udt(
-        p_csv   VARCHAR2
+         p_csv              VARCHAR2
+        ,p_separator        VARCHAR2    DEFAULT ','
+	    ,p_keep_nulls       VARCHAR2    DEFAULT 'N'
+	    ,p_strip_dquote     VARCHAR2    DEFAULT 'Y' -- also unquotes \" and "" pairs within the field to just "
+        ,p_expected_cnt     NUMBER      DEFAULT 0
+
     ) RETURN SELF AS RESULT
     IS
     BEGIN
-        arr := app_csv_pkg.split_csv(p_csv);
+        app_csv_pkg.split_csv(
+             po_arr         => arr
+            ,p_s            => TO_CLOB(p_csv)
+            ,p_separator    => p_separator
+	        ,p_keep_nulls   => p_keep_nulls
+	        ,p_strip_dquote => p_strip_dquote
+            ,p_expected_cnt => p_expected_cnt
+        );
         RETURN;
     END;
+
+    CONSTRUCTOR FUNCTION perlish_util_udt(
+         p_csv              CLOB
+        ,p_separator        VARCHAR2    DEFAULT ','
+	    ,p_keep_nulls       VARCHAR2    DEFAULT 'N'
+	    ,p_strip_dquote     VARCHAR2    DEFAULT 'Y' -- also unquotes \" and "" pairs within the field to just "
+        ,p_expected_cnt     NUMBER      DEFAULT 0
+
+    ) RETURN SELF AS RESULT
+    IS
+    BEGIN
+        app_csv_pkg.split_csv(
+             po_arr         => arr
+            ,p_s            => p_csv
+            ,p_separator    => p_separator
+	        ,p_keep_nulls   => p_keep_nulls
+	        ,p_strip_dquote => p_strip_dquote
+            ,p_expected_cnt => p_expected_cnt
+        );
+        RETURN;
+    END;
+
     -- all are callable in a chain
     MEMBER FUNCTION get 
     RETURN &&d_arr_varchar2_udt.
