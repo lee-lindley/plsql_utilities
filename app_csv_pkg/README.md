@@ -434,14 +434,14 @@ COMMIT;
 ## split_csv
 
 ```sql
-	PROCEDURE split_csv (
+    PROCEDURE split_csv (
          po_arr OUT NOCOPY  arr_varchar2_udt
-	    ,p_s                CLOB
-	    ,p_separator        VARCHAR2    DEFAULT ','
-	    ,p_keep_nulls       VARCHAR2    DEFAULT 'N'
-	    ,p_strip_dquote     VARCHAR2    DEFAULT 'Y' -- also unquotes \" and "" pairs within the field to just "
+        ,p_s                CLOB
+        ,p_separator        VARCHAR2    DEFAULT ','
+        ,p_keep_nulls       VARCHAR2    DEFAULT 'N'
+        ,p_strip_dquote     VARCHAR2    DEFAULT 'Y' -- also unquotes \" and "" pairs within the field to just "
         ,p_expected_cnt     NUMBER      DEFAULT 0 -- will get an array with at least this many elements
-	);
+    );
 ```
 
 - *po_arr*
@@ -479,10 +479,10 @@ do better. (really! I like to learn.)
 
 ```sql
     FUNCTION split_csv (
-	     p_s            CLOB
-	    ,p_separator    VARCHAR2    DEFAULT ','
-	    ,p_keep_nulls   VARCHAR2    DEFAULT 'N'
-	    ,p_strip_dquote VARCHAR2    DEFAULT 'Y' -- also unquotes \" and "" pairs within the field to just "
+         p_s            CLOB
+        ,p_separator    VARCHAR2    DEFAULT ','
+        ,p_keep_nulls   VARCHAR2    DEFAULT 'N'
+        ,p_strip_dquote VARCHAR2    DEFAULT 'Y' -- also unquotes \" and "" pairs within the field to just "
         ,p_expected_cnt NUMBER      DEFAULT 0 -- will get an array with at least this many elements
     ) RETURN &&d_arr_varchar2_udt. 
     DETERMINISTIC;
@@ -491,10 +491,10 @@ Calls PROCEDURE *split_csv* and returns the collection.
 
 ```sql
     FUNCTION split_csv (
-	     p_s            VARCHAR2
-	    ,p_separator    VARCHAR2    DEFAULT ','
-	    ,p_keep_nulls   VARCHAR2    DEFAULT 'N'
-	    ,p_strip_dquote VARCHAR2    DEFAULT 'Y' -- also unquotes \" and "" pairs within the field to just "
+         p_s            VARCHAR2
+        ,p_separator    VARCHAR2    DEFAULT ','
+        ,p_keep_nulls   VARCHAR2    DEFAULT 'N'
+        ,p_strip_dquote VARCHAR2    DEFAULT 'Y' -- also unquotes \" and "" pairs within the field to just "
         ,p_expected_cnt NUMBER      DEFAULT 0 -- will get an array with at least this many elements
     ) RETURN &&d_arr_varchar2_udt. 
     DETERMINISTIC;
