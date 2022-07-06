@@ -92,7 +92,7 @@ Example Usage:
     CREATE OR REPLACE PROCEDURE my_job_procedure 
     IS
         ...
-        v_log   app_job_log('MY_DAILY_JOB', 'appsupport@mycompany.com');
+        v_log   app_job_log := app_job_log('MY_DAILY_JOB', 'appsupport@mycompany.com');
     BEGIN
         v_log.jstart;
         ...
