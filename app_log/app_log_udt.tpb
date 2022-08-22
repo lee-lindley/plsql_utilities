@@ -36,9 +36,13 @@ CREATE OR REPLACE TYPE BODY app_log_udt AS
     IS
         -- we create the log messages independent from the main body who may commit or rollback separately
         PRAGMA AUTONOMOUS_TRANSACTION;
+        v_i BINARY_INTEGER := 1;
     BEGIN
-        -- we silently truncate the message to fit the 4000 char column
-        INSERT INTO app_log(app_id, ts, msg) VALUES (SELF.app_id, CURRENT_TIMESTAMP, SUBSTR(p_msg,1,4000));
+        WHILE v_i <= LENGTH(p_msg)
+        LOOP
+            INSERT INTO app_log(app_id, ts, msg) VALUES (SELF.app_id, CURRENT_TIMESTAMP, SUBSTR(p_msg,v_i,4000));
+            v_i := v_i + 4000;
+        END LOOP;
         COMMIT;
     END log
     ; 

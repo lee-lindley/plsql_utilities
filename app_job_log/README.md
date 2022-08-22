@@ -92,7 +92,7 @@ Example Usage:
     CREATE OR REPLACE PROCEDURE my_job_procedure 
     IS
         ...
-        v_log   app_job_log := app_job_log('MY_DAILY_JOB', 'appsupport@mycompany.com');
+        v_log   app_job_log_udt := app_job_log_udt('MY_DAILY_JOB', 'appsupport@mycompany.com');
     BEGIN
         v_log.jstart;
         ...
@@ -107,7 +107,8 @@ Example Usage:
             p_msg           => SQLERRM
             ,p_backtrace    => DBMS_UTILITY.FORMAT_ERROR_BACKTRACE
             ,p_callstack    => DBMS_UTILITY.FORMAT_CALL_STACK
-            ,p_do_email     => TRUE
+            -- only if compiled with email
+            --,p_do_email     => TRUE
         );
         ROLLBACK;
         RAISE;
