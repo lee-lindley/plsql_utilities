@@ -183,6 +183,43 @@ SOFTWARE.
     END split_lines_to_fields
     ;
 
+    -- for when you need it in pl/sql array
+    FUNCTION split_clob_to_fields(
+        p_clob          CLOB
+        ,p_max_lines    NUMBER      DEFAULT NULL
+        ,p_skip_lines   NUMBER      DEFAULT NULL
+        ,p_separator    VARCHAR2    DEFAULT ','
+	    ,p_strip_dquote VARCHAR2    DEFAULT 'Y' -- also unquotes \" and "" pairs within the field to just "
+        ,p_keep_nulls   VARCHAR2    DEFAULT 'Y'
+    )
+    RETURN &&d_arr_arr_varchar2_udt.
+    IS
+        v_arr_arr   &&d_arr_arr_varchar2_udt. ;
+    BEGIN
+        SELECT CAST(COLLECT(t.arr ORDER BY t.rn) AS &&compile_schema..&&d_arr_arr_varchar2_udt.) INTO v_arr_arr
+        FROM TABLE(
+            &&compile_schema..app_csv_pkg.split_lines_to_fields(
+                p_curs          => CURSOR(
+                                        SELECT *
+                                        FROM TABLE( &&compile_schema..app_csv_pkg.split_clob_to_lines(
+                                                        p_clob          => p_clob
+                                                        ,p_max_lines    => p_max_lines
+                                                        ,p_skip_lines   => p_skip_lines
+                                                    ) 
+                                        )
+                                   )
+                ,p_separator    => p_separator
+                ,p_strip_dquote => p_strip_dquote
+                ,p_keep_nulls   => p_keep_nulls
+            )
+        ) t
+        ;
+
+        RETURN v_arr_arr;
+    END split_clob_to_fields
+    ;
+
+
 	FUNCTION split_csv (
 	     p_s                CLOB
 	    ,p_separator        VARCHAR2    DEFAULT ','

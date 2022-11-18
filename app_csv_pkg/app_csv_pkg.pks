@@ -89,6 +89,18 @@ in your cursor/query/view, you must cast them to DATE for it to work.
     PIPELINED
     ;
 
+    -- for when you need it in pl/sql array
+    FUNCTION split_clob_to_fields(
+        p_clob          CLOB
+        ,p_max_lines    NUMBER      DEFAULT NULL
+        ,p_skip_lines   NUMBER      DEFAULT NULL
+        ,p_separator    VARCHAR2    DEFAULT ','
+	    ,p_strip_dquote VARCHAR2    DEFAULT 'Y' -- also unquotes \" and "" pairs within the field to just "
+        ,p_keep_nulls   VARCHAR2    DEFAULT 'Y'
+    )
+    RETURN &&d_arr_arr_varchar2_udt.
+    ;
+
 	FUNCTION split_csv (
 	     p_s                CLOB
 	    ,p_separator        VARCHAR2    DEFAULT ','

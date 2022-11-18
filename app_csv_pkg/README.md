@@ -54,6 +54,7 @@ at the bottom of this document.
     - [splti_csv](#split_csv)
     - [split_clob_to_lines](#split_clob_to_lines)
     - [split_lines_to_fields](#split_lines_to_fields)
+    - [split_clob_to_fields](#split_clob_to_fields)
     - [create_ptt_csv](#create_ptt_csv)
     - [gen_deploy_insert](#gen_deploy_insert)
     - [gen_deploy_merge](#gen_deploy_merge)
@@ -600,6 +601,39 @@ for the order even if it works today. Most of the time you probably will not car
 
 See the use case [Convert Table of Records to Table of Fields Arrays](#convert-table-of-records-to-table-of-fields-arrays)
 for an example of using *split_lines_to_fields* as a chained pipeline row construct with *split_clob_to_lines*.
+
+## split_clob_to_fields
+
+```sql
+    -- for when you need it in pl/sql array
+    FUNCTION split_clob_to_fields(
+        p_clob          CLOB
+        ,p_max_lines    NUMBER      DEFAULT NULL
+        ,p_skip_lines   NUMBER      DEFAULT NULL
+        ,p_separator    VARCHAR2    DEFAULT ','
+	    ,p_strip_dquote VARCHAR2    DEFAULT 'Y' -- also unquotes \" and "" pairs within the field to just "
+        ,p_keep_nulls   VARCHAR2    DEFAULT 'Y'
+    )
+    RETURN arr_arr_varchar2_udt
+    ;
+```
+
+- *p_clob*
+    - A string containing CSV records separated by linefeed
+- *p_max_lines*
+    - Stop after reading a number of lines. Most common use case is stop after reading the first line (header row).
+- *p_skip_lines*
+    - Skip a number of lines before producing output rows. Most common use case is skipping the first line (header row).
+- *p_separator*
+    - A parameter passed to *split_csv* to parse the row
+- *p_strip_dquote*
+    - A parameter passed to *split_csv* to parse the row
+- *p_keep_nulls*
+    - A parameter passed to *split_csv* to parse the row
+
+See *split_clob_to_lines* and *split_lines_to_fields*, which it calls. It is a convenience function to
+provide you with a two dimensional array directly in pl/sql. It calls out to the SQL engine to
+run the pipelined table functions for you.
 
 ## create_ptt_csv
 
