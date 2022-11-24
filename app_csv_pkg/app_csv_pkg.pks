@@ -101,6 +101,14 @@ in your cursor/query/view, you must cast them to DATE for it to work.
     RETURN &&d_arr_arr_varchar2_udt.
     ;
 
+    -- assumes all rows in the collection have same number of fields
+    FUNCTION get_cursor_from_collections(
+        p_arr_arr       &&d_arr_arr_varchar2_udt.
+        ,p_skip_rows    NUMBER := 0
+        ,p_trim_rows    NUMBER := 0
+    ) RETURN SYS_REFCURSOR
+    ;
+
 	FUNCTION split_csv (
 	     p_s                CLOB
 	    ,p_separator        VARCHAR2    DEFAULT ','

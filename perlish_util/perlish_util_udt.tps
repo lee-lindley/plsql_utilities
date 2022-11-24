@@ -113,7 +113,11 @@ AS OBJECT (
 	RETURN CLOB DETERMINISTIC
     ,STATIC FUNCTION transform_perl_regexp(p_re VARCHAR2)
 	RETURN VARCHAR2 DETERMINISTIC
-
+    ,STATIC FUNCTION get_cursor_from_collections(
+        p_arr_arr       &&d_arr_arr_varchar2_udt.
+        ,p_skip_rows    NUMBER := 0
+        ,p_trim_rows    NUMBER := 0
+    ) RETURN SYS_REFCURSOR
 );
 /
 show errors

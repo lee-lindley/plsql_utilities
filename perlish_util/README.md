@@ -185,6 +185,12 @@ AS OBJECT (
         RETURN CLOB DETERMINISTIC
     ,STATIC FUNCTION transform_perl_regexp(p_re VARCHAR2)
         RETURN VARCHAR2 DETERMINISTIC
+    ,STATIC FUNCTION get_cursor_from_collections(
+        p_arr_arr       &&d_arr_arr_varchar2_udt.
+        ,p_skip_rows    NUMBER := 0
+        ,p_trim_rows    NUMBER := 0
+    ) RETURN SYS_REFCURSOR
+
 );
 ```
 ### CONSTRUCTOR perlish_util_udt
@@ -459,6 +465,13 @@ and have the RE that you hand to the Oracle procedure appear as
     (([^"
     ]+|"(""|\\"|[^"])*")*)($|
     )
+### get_cursor_from_collections
+
+You pass in a collection of string collections and get back an open SYS_REFCURSOR.
+The optional arguments *p_skip_rows* and *p_trim_rows* cause the cursor to not
+include the beginning or ending rows of the collection in the cursor.
+
+The same function implemented slightly differently exists in package *app_csv_pkg*.
 
 ## perlish_util_pkg
 

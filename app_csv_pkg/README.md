@@ -55,6 +55,7 @@ at the bottom of this document.
     - [split_clob_to_lines](#split_clob_to_lines)
     - [split_lines_to_fields](#split_lines_to_fields)
     - [split_clob_to_fields](#split_clob_to_fields)
+    - [get_cursor_from_collections](#get_cursor_from_collections)
     - [create_ptt_csv](#create_ptt_csv)
     - [gen_deploy_insert](#gen_deploy_insert)
     - [gen_deploy_merge](#gen_deploy_merge)
@@ -634,6 +635,30 @@ for an example of using *split_lines_to_fields* as a chained pipeline row constr
 See *split_clob_to_lines* and *split_lines_to_fields*, which it calls. It is a convenience function to
 provide you with a two dimensional array directly in pl/sql. It calls out to the SQL engine to
 run the pipelined table functions for you.
+
+## get_cursor_from_collections
+
+```sql
+    -- assumes all rows in the collection have same number of fields
+    FUNCTION get_cursor_from_collections(
+        p_arr_arr       arr_arr_varchar2_udt
+        ,p_skip_rows    NUMBER := 0
+        ,p_trim_rows    NUMBER := 0
+    ) RETURN SYS_REFCURSOR
+    ;
+```
+Given a structure of records with character fields, create a cursor that returns those records.
+Note that we do not know how many fields are in each record. The SQL that extracts those fields
+is built on the fly with column names C1, C2, etc.. 
+
+The assumption is that all records in the collection have the same number of fields.
+
+- *p_arr_arr*
+    - A nested table of nested tables of character strings. 
+- *p_skip_rows*
+    - Will skip this many records from the beginning of the collection
+- *p_trim_rows*
+    - Will skip this many records from the end of the collection
 
 ## create_ptt_csv
 

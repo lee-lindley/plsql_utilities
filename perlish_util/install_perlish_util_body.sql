@@ -2,6 +2,14 @@
 --ALTER SESSION SET plsql_optimize_level=3;
 --define d_arr_varchar2_udt="arr_varchar2_udt"
 whenever sqlerror exit failure
+COLUMN :cs NEW_VALUE cs NOPRINT
+VARIABLE cs VARCHAR2(128)
+BEGIN
+    :cs := SYS_CONTEXT('USERENV','CURRENT_SCHEMA');
+END;
+/
+SELECT :cs FROM dual;
+define compile_schema=&&cs;
 prompt calling perlish_util_udt.tpb
 @@perlish_util_udt.tpb
 --

@@ -219,6 +219,43 @@ SOFTWARE.
     END split_clob_to_fields
     ;
 
+    FUNCTION get_cursor_from_collections(
+        p_arr_arr   &&d_arr_arr_varchar2_udt.
+        ,p_skip_rows    NUMBER := 0
+        ,p_trim_rows    NUMBER := 0
+    ) RETURN SYS_REFCURSOR
+    IS
+        v_sql   CLOB;
+        v_src   SYS_REFCURSOR;
+    BEGIN
+        v_sql := q'{WITH 
+FUNCTION wget(
+    p_arr   ARR_VARCHAR2_UDT
+    ,p_i    NUMBER
+) RETURN VARCHAR2
+AS
+BEGIN
+    RETURN p_arr(p_i);
+END;
+a AS (
+    SELECT rownum AS rn, t.COLUMN_VALUE AS arr 
+    FROM TABLE(:my_tab) t
+)
+SELECT wget(a.arr,1) AS c1}';
+        FOR i IN 2..p_arr_arr(1).COUNT
+        LOOP
+            v_sql := v_sql||', wget(a.arr,'||TO_CHAR(i)||') AS c'||TO_CHAR(i);
+        END LOOP;
+        v_sql := v_sql||q'{
+FROM a
+ORDER BY rn
+WHERE rn BETWEEN :first_row AND :last_row}';
+
+        OPEN v_src FOR v_sql USING p_arr_arr, NVL(p_skip_rows,0)+1, p_arr_arr.COUNT - NVL(p_trim_rows,0);
+        RETURN v_src;
+    END get_cursor_from_collections
+    ;
+
 
 	FUNCTION split_csv (
 	     p_s                CLOB
