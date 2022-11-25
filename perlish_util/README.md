@@ -24,9 +24,10 @@ A *perlish_util_udt* object instance holds an *arr_varchar2_udt* collection attr
 - join
 - sort
 - get
+- count
 - combine
 
-All member methods except *get* have static alternatives using *arr_varchar2_udt* parameters and return types, so you
+All member methods except *get* and *count* have static alternatives using *arr_varchar2_udt* parameters and return types, so you
 are not forced to use the Object Oriented syntax.
 
 It also has a static method named *transform_perl_regexp* that has nothing to do with arrays/lists, but is Perlish.
@@ -128,6 +129,8 @@ AS OBJECT (
     ,MEMBER FUNCTION get(
         p_i             NUMBER
     ) RETURN VARCHAR2
+    -- get count of collection elements
+    ,MEMBER FUNCTION count RETURN NUMBER
     ,STATIC FUNCTION map(
         p_expr          VARCHAR2 -- not an anonymous block
         ,p_arr          &&d_arr_varchar2_udt.
@@ -415,6 +418,10 @@ The override method that takes a NUMBER argument returns an element of the colle
 to avoid accessing the member attribute directly, it allows us to get a value from the collection in SQL! See
 examples below.
 
+### count
+
+Returns the collection count from member collection.
+
 ### transform_perl_regexp
 
 A function to treat the input value as a Perl-style regular expression with
@@ -465,13 +472,6 @@ and have the RE that you hand to the Oracle procedure appear as
     (([^"
     ]+|"(""|\\"|[^"])*")*)($|
     )
-### get_cursor_from_collections
-
-You pass in a collection of string collections and get back an open SYS_REFCURSOR.
-The optional arguments *p_skip_rows* and *p_trim_rows* cause the cursor to not
-include the beginning or ending rows of the collection in the cursor.
-
-The same function implemented slightly differently exists in package *app_csv_pkg*.
 
 ## perlish_util_pkg
 
@@ -663,7 +663,37 @@ Output:
         ,p_values   OUT arr_varchar2_udt
     )
     ;
+
+    FUNCTION get_cursor_from_collections(
+        p_arr_arr       arr_perlish_util_udt
+        ,p_skip_rows    NUMBER := 0
+        ,p_trim_rows    NUMBER := 0
+    ) RETURN SYS_REFCURSOR
+    ;
+    FUNCTION arr_perlish_from_arr_varchar2(
+        p_arr_arr       &&d_arr_arr_varchar2_udt.
+    ) RETURN arr_perlish_util_udt
+    ;
+
 ```
+
+### get_cursor_from_collections
+
+Builds a query string that selects rows from your collection of collections, then
+for each row builds a list of column names C1, C2, ...
+
+The WHERE clause can skip the first (or first few) records and last (or last few) records
+via the parameters *p_skip_rows* and *p_trim_rows*.
+
+It opens and returns a SYS_REFCURSOR using the query string it built, binding the collection and
+counts to it.
+
+### arr_perlish_from_arr_varchar2
+
+Given a collection of VARCHAR2 collections, convert the two dimensional array into
+an *arr_perlish_util_udt*. Normally this would be a constructor, but collection
+objects don't have those. We would have to build a container object. Since this is the
+only method it needs, seemed prudent to stuff it into this package.
 
 #### hash_slice
 

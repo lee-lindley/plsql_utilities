@@ -65,6 +65,17 @@ IS
     )
     ;
 
+    FUNCTION get_cursor_from_collections(
+        p_arr_arr       arr_perlish_util_udt
+        ,p_skip_rows    NUMBER := 0
+        ,p_trim_rows    NUMBER := 0
+    ) RETURN SYS_REFCURSOR
+    ;
+    FUNCTION arr_perlish_from_arr_varchar2(
+        p_arr_arr       &&d_arr_arr_varchar2_udt.
+    ) RETURN arr_perlish_util_udt
+    ;
+
 
 END perlish_util_pkg;
 /

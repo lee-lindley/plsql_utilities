@@ -93,6 +93,11 @@ CREATE OR REPLACE TYPE BODY perlish_util_udt AS
     BEGIN
         RETURN arr(p_i); -- if you ask for one we do not have, the collection object will puke
     END get;
+    MEMBER FUNCTION count RETURN NUMBER
+    IS
+    BEGIN
+        RETURN arr.COUNT;
+    END count;
 
     STATIC FUNCTION map(
         p_expr          VARCHAR2 -- not an anonymous block
@@ -285,34 +290,6 @@ CREATE OR REPLACE TYPE BODY perlish_util_udt AS
 	        ) 
 	    ;
 	END transform_perl_regexp;
-
-    STATIC FUNCTION get_cursor_from_collections(
-        p_arr_arr       &&d_arr_arr_varchar2_udt.
-        ,p_skip_rows    NUMBER := 0
-        ,p_trim_rows    NUMBER := 0
-    ) RETURN SYS_REFCURSOR
-    IS
-        v_src           SYS_REFCURSOR;
-        v_sql           CLOB;
-    BEGIN
-        v_sql := q'{WITH a AS (
-    SELECT rownum AS rn, &&compile_schema..perlish_util_udt(t.COLUMN_VALUE) AS parr
-    FROM TABLE(:my_tab) t
-)
-SELECT t.arr.get(1) AS c1}';
-        FOR i IN 2..p_arr_arr(1).COUNT
-        LOOP
-            v_sql := v_sql||', t.parr.get('||TO_CHAR(i)||') AS c'||TO_CHAR(i);
-        END LOOP;
-        v_sql := v_sql||q'{
-FROM a t
-WHERE rn BETWEEN :first_row AND :last_row}';
-
-        OPEN v_src FOR v_sql USING p_arr_arr, NVL(p_skip_rows,0)+1, p_arr_arr.COUNT - NVL(p_trim_rows,0);
-        RETURN v_src;
-    END get_cursor_from_collections
-    ;
-
 
 END;
 /

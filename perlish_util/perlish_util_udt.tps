@@ -50,12 +50,15 @@ AS OBJECT (
 
     ) RETURN SELF AS RESULT
     -- all are callable in a chain if they return perlish_util_udt; otherwise must be end of chain
+
     -- get the object member collection
     ,MEMBER FUNCTION get RETURN &&d_arr_varchar2_udt.
     -- get a collection element
     ,MEMBER FUNCTION get(
         p_i             NUMBER
     ) RETURN VARCHAR2
+    -- get count of collection elements
+    ,MEMBER FUNCTION count RETURN NUMBER
     ,STATIC FUNCTION map(
         p_expr          VARCHAR2 -- not an anonymous block
         ,p_arr          &&d_arr_varchar2_udt.
@@ -113,11 +116,6 @@ AS OBJECT (
 	RETURN CLOB DETERMINISTIC
     ,STATIC FUNCTION transform_perl_regexp(p_re VARCHAR2)
 	RETURN VARCHAR2 DETERMINISTIC
-    ,STATIC FUNCTION get_cursor_from_collections(
-        p_arr_arr       &&d_arr_arr_varchar2_udt.
-        ,p_skip_rows    NUMBER := 0
-        ,p_trim_rows    NUMBER := 0
-    ) RETURN SYS_REFCURSOR
 );
 /
 show errors
