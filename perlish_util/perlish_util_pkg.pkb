@@ -204,12 +204,12 @@ IS
     SELECT rownum AS rn, t.COLUMN_VALUE AS parr
     FROM TABLE(:my_tab) t
 )
-SELECT t.arr.get(1) AS c1}';
-        FOR i IN 2 .. p_arr_arr(1).count
-        LOOP
-            v_sql := v_sql||', t.parr.get('||TO_CHAR(i)||') AS c'||TO_CHAR(i);
-        END LOOP;
-        v_sql := v_sql||q'{
+SELECT
+    }'
+            ||perlish_util_udt(p_map_string => 't.parr.get($##index_val##) AS c$##index_val##'
+                               ,p_last      => p_arr_arr(1).COUNT
+                              ).join(CHR(10)||'    ,')
+            ||q'{
 FROM a t
 WHERE rn BETWEEN :first_row AND :last_row}';
 

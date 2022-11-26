@@ -39,7 +39,6 @@ AS OBJECT (
 	    ,p_keep_nulls       VARCHAR2    DEFAULT 'N'
 	    ,p_strip_dquote     VARCHAR2    DEFAULT 'Y' -- also unquotes \" and "" pairs within the field to just "
         ,p_expected_cnt     NUMBER      DEFAULT 0
-
     ) RETURN SELF AS RESULT
     ,CONSTRUCTOR FUNCTION perlish_util_udt(
          p_csv              CLOB
@@ -47,7 +46,18 @@ AS OBJECT (
 	    ,p_keep_nulls       VARCHAR2    DEFAULT 'N'
 	    ,p_strip_dquote     VARCHAR2    DEFAULT 'Y' -- also unquotes \" and "" pairs within the field to just "
         ,p_expected_cnt     NUMBER      DEFAULT 0
-
+    ) RETURN SELF AS RESULT
+    -- a weirdo constructor. Creates array with each value containing p_map_string
+    -- except the token '$##index_val##' is replaced with an index number starting
+    -- with p_first and going through p_last
+    -- Example: v_str := perlish_util_udt(p_map_string => 'x.pu_udt.get($##index_val##) AS C$##index_val##'
+    --                                    , p_last => 5
+    --                                   ).join(CHR(10)||',');
+    --
+    ,CONSTRUCTOR FUNCTION perlish_util_udt(
+        p_map_string        VARCHAR2
+        ,p_last             NUMBER
+        ,p_first            NUMBER      DEFAULT 1
     ) RETURN SELF AS RESULT
     -- all are callable in a chain if they return perlish_util_udt; otherwise must be end of chain
 

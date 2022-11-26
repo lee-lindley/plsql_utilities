@@ -119,9 +119,33 @@ AS OBJECT (
         p_arr    &&d_arr_varchar2_udt.
     ) RETURN SELF AS RESULT
     */
-    ,CONSTRUCTOR FUNCTION perlish_util_udt(
-        p_csv   VARCHAR2
+        ,CONSTRUCTOR FUNCTION perlish_util_udt(
+         p_csv              VARCHAR2
+        ,p_separator        VARCHAR2    DEFAULT ','
+	    ,p_keep_nulls       VARCHAR2    DEFAULT 'N'
+	    ,p_strip_dquote     VARCHAR2    DEFAULT 'Y' -- also unquotes \" and "" pairs within the field to just "
+        ,p_expected_cnt     NUMBER      DEFAULT 0
     ) RETURN SELF AS RESULT
+    ,CONSTRUCTOR FUNCTION perlish_util_udt(
+         p_csv              CLOB
+        ,p_separator        VARCHAR2    DEFAULT ','
+	    ,p_keep_nulls       VARCHAR2    DEFAULT 'N'
+	    ,p_strip_dquote     VARCHAR2    DEFAULT 'Y' -- also unquotes \" and "" pairs within the field to just "
+        ,p_expected_cnt     NUMBER      DEFAULT 0
+    ) RETURN SELF AS RESULT
+    -- a weirdo constructor. Creates array with each value containing p_map_string
+    -- except the token '$##index_val##' is replaced with an index number starting
+    -- with p_first and going through p_last
+    -- Example: v_str := perlish_util_udt(p_map_string => 'x.pu_udt.get($##index_val##) AS C$##index_val##'
+    --                                    , p_last => 5
+    --                                   ).join(CHR(10)||',');
+    --
+    ,CONSTRUCTOR FUNCTION perlish_util_udt(
+        p_map_string        VARCHAR2
+        ,p_last             NUMBER
+        ,p_first            NUMBER      DEFAULT 1
+    ) RETURN SELF AS RESULT
+
     -- all are callable in a chain if they return perlish_util_udt; otherwise must be end of chain
     -- get the object member collection
     ,MEMBER FUNCTION get RETURN &&d_arr_varchar2_udt.
@@ -199,12 +223,49 @@ AS OBJECT (
 ### CONSTRUCTOR perlish_util_udt
 
 You can call the default constructor with an *arr_varchar2_udt* collection, or you can call
-the custom constructor that takes a VARCHAR2 parameter which will be split on commas by *app_csv_pkg.split_csv*.
+the custom constructor that takes a VARCHAR2 or CLOB parameter which will be split on commas by *app_csv_pkg.split_csv*.
+
+In the second form the the optional arguments are from *app_csv_pkg.split_csv*. See documentation on
+that package for additional detail.
+
+#### Parameters Default Constructor
+
+- ARR_VARCHAR2_UDT
+    -- a nested table collection of VARCHAR2(4000) strings
+
+#### Parameters for *split_csv* Constructor
+
+- p_csv VARCHAR2 or CLOB
+    - A string expected to contain CSV data, generally comma separated and possibly double quoted
+- p_separator VARCHAR2
+    - The character between fields in the CSV data, generally comma.
+- p_keep_nulls VARCHAR2
+    - If you want empty (NULL string) entries in your array, set this to 'Y'. You could want this if you need placeholders or want actual NULL values to be used for the element. The default is 'N' to throw out NULL values from the CSV string.
+- p_strip_dquote VARCHAR2
+    - By default we strip the enclosing double quote marks for the field value if present. This also causes embedded occurences of '##' or '\\#' to be de-quoted.
+- p_expected_cnt NUMBER
+    - an optimization you generally will not be concerned with. See package for details
+
+#### Parameters for Mapping Constructor
+
+- p_map_string VARCHAR2
+    - A string that will populate each value of the array. On every instance the placeholder '$##index_val##' is replaced by the string of the numeric value between *p_first* and *p_last*. Note that this is not necessarily the same as the index into the array which will always start with 1.
+- p_last NUMBER
+    - The last index in the list
+- p_first NUMBER
+    - THe first index in the list
 
 ### join
 
 The array elements are joined together with a comma separator (or value you provide) returning a single string.
 It works pretty much the same as Perl *join*.
+
+#### Parameters
+
+- p_separator VARCHAR2
+    - Value to place between array elements while constructing the string that is returned. The default is ',', but you might want something like <code>CHR(10)||'    ,'</code> to make it pretty.
+
+#### Discussion
 
 You could do the same thing using *LISTAGG* in a SQL statement as long as the result was under 4000 characters.
 The variant *join2clob* returns a CLOB so you are not limited in the size of the resulting string.
@@ -246,10 +307,18 @@ have likely been annoyed by before.
 
 ### sort
 
+Sort calls the SQL engine to sort the incoming list and returns a new
+*perlish_util_udt* object with the sorted results.
+
+#### Parameters
+
+- p_descending VARCHAR2
+    - Default is 'N'. Provide 'Y' for sorting the array in descending order.
+
+#### Discussion
+
 I almost didn't provide this but the fact that you have to reach out to the SQL engine
 to do a sort in PL/SQL is sort of annoying (you decide whether the pun is intended). 
-It calls the SQL engine to sort the incoming list and returns a new
-*perlish_util_udt* object with the sorted results.
 
 The traditional way:
 
@@ -286,11 +355,20 @@ as it appears in the *p_expr* string.
 Likewise, if the string '$##index_val##' occurs in the string, it is replaced with the array
 index value.
 
+It returns a new *perlish_util_udt* object with the transformed elements.
+
 >Note that this is just an expression version of the Perl *map*
 functionality. We are not doing an anonymous block or anything really fancy. We could, but I do
 not think it would be a good idea. Keep your expectations low.
 
-It returns a new *perlish_util_udt* object with the transformed elements.
+#### Parameters
+
+- p_expr VARCHAR2
+    - The string that is put into the output array with placeholders replaced by the value of the input array (and optionally the index value).
+- p_ VARCHAR2
+    - If you do not like the default placeholder of '$\_', you can specify your own. The special placeholder name '###index_val##' cannot be changed. If you want to be able to change it, put in a pull request to add another parameter.
+
+#### Discussion
 
 If you are going to do both *map* and *join*, you could use *LISTAGG* in a SQL statement
 to accomplish it. 
@@ -313,11 +391,7 @@ END;
 
 ### combine
 
-Not really a Perl thing because in Perl we would build anonymous arrays/hashes on the fly to do it, 
-but I often find myself needing to combine elements of two
-lists into a new string value list. It works kind of like map 
-and kind of like sort does with the $a and $b variables for different elements (well, different
-elements in a single list, but hopefully you get the idea). Given an expression:
+Given an expression:
 
     '$_a_ combines with $_b_'
 
@@ -325,10 +399,31 @@ and the input list from the object instance plus the input array named *p_arr_b*
 it loops through the elements substituting the value from the object instance array
 whereever '$\_a\_' occurs in the string, and the value from the array named *p_arr_b*
 wherever '$\_b\_' occurs in the string. The result is stuffed into the return array
-at the same index. You can use different placeholders than '$\_a\_' by specifying 
-the placholder strings in the arguments *p_a* and *p_b*.
+at the same index. 
 
 It returns a new *perlish_util_udt* object with the transformed/combined elements.
+
+#### Parameters
+
+- p_expr VARCHAR2
+    - A string that will be put into each element of the output array. The values '$\_a\_' and '$\_b\_' are replaced by the corresponding elements of the two input arrays (first of which is the instance invoking the method).
+- p_arr_b ARR_VARCHAR2_UDT
+    - The second array of elements -- the ones that replace '$\_b\_'. Note that this is not a *perlish_util_udt* object. If you have one named *v_pu_b* you will specify the parameter as <code>p_arr_b => v_pu_b.get -- or v_pu_b.arr</code>.
+- p_a   VARCHAR2
+    - The placeholder string for elements from the invoking instance array. Default is '$\_a\_'.
+- p_b   VARCHAR2
+    - The placeholder string for elements from the second array, parameter *p_arr_b*. Default is '$\_b\_'.
+
+#### Discussion
+
+Not really a Perl thing because in Perl we would build anonymous arrays/hashes on the fly to do it, 
+but I often find myself needing to combine elements of two
+lists into a new string value list. It works kind of like map 
+and kind of like sort does with the $a and $b variables for different elements (well, different
+elements in a single list, but hopefully you get the idea). 
+
+You can use different placeholders than '$\_a\_' by specifying 
+the placholder strings in the arguments *p_a* and *p_b*.
 
 Example:
 
@@ -688,10 +783,36 @@ via the parameters *p_skip_rows* and *p_trim_rows*.
 It opens and returns a SYS_REFCURSOR using the query string it built, binding the collection and
 counts to it.
 
+#### Parameters
+
+- p_arr_arr ARR_PERLISH_UTIL_UDT
+    - two dimensional object, a nested table of *perlish_util_udt* objects. *arr_perlish_from_arr_varchar2* will construct one of those for you from an *arr_arr_varchar2_udt*.
+- p_skip_rows NUMBER
+    - You can have the returned cursor skip one or more rows from the start of the collection.
+- p_trim_rows NUMBER
+    - You can have the returned cursor stop before reading the last, or last few rows of the collection.
+
+#### Discussion
+
+You have a two dimensional object table in PL/SQL and want a cursor that selects from it. There are a variable number 
+of columns and the columns do not have names. *get_cursor_from_collections* will construct and open a cursor that
+provides that resultset.
+
+The blog post [Create a PL/SQL Cursor from a Nested Table of Nested Tables](https://lee-lindley.github.io/oracle/sql/plsql/2022/11/24/Cursor_from_Collections.html) may provide context for this.
+
 ### arr_perlish_from_arr_varchar2
 
 Given a collection of VARCHAR2 collections, convert the two dimensional array into
-an *arr_perlish_util_udt*. Normally this would be a constructor, but collection
+an *arr_perlish_util_udt*. 
+
+#### Parameters
+
+- p_arr_arr ARR_ARR_VARCHAR2_UDT
+    - a nested table of nested tables of VARCHAR2(4000), aka a two dimensional collection of strings object.
+
+#### Discussion
+
+Normally this would be a constructor, but collection
 objects don't have those. We would have to build a container object. Since this is the
 only method it needs, seemed prudent to stuff it into this package.
 

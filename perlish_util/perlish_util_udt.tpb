@@ -78,6 +78,28 @@ CREATE OR REPLACE TYPE BODY perlish_util_udt AS
         RETURN;
     END perlish_util_udt;
 
+    -- 
+    -- given a string containing one or more placeholders for the index value, 
+    -- create an array entry for each between the limits with the placeholder
+    -- replaced by the index value.
+    CONSTRUCTOR FUNCTION perlish_util_udt(
+        p_map_string        VARCHAR2
+        ,p_last             NUMBER
+        ,p_first            NUMBER      DEFAULT 1
+    ) RETURN SELF AS RESULT
+    IS
+        v_j                 BINARY_INTEGER := 0;
+    BEGIN
+        arr := &&d_arr_varchar2_udt.();
+        arr.EXTEND(p_last + 1 - p_first);
+        FOR i IN p_first .. p_last
+        LOOP
+            v_j := v_j + 1;
+            arr(v_j) := REPLACE(p_map_string, '$##index_val##', i);
+        END LOOP;
+        RETURN;
+    END perlish_util_udt;
+
     -- all are callable in a chain
     MEMBER FUNCTION get 
     RETURN &&d_arr_varchar2_udt.
