@@ -44,7 +44,7 @@ Example 1:
 ```
 Output:
 
-    "four, one, three, two"
+    four, one, three, two
 
 Example 2:
 ```sql
@@ -52,7 +52,7 @@ Example 2:
 ```
 Output:
 
-    "t.id = q.id AND t.type = q.type"
+    t.id = q.id AND t.type = q.type
 
 Example 3:
 ```sql
@@ -91,7 +91,7 @@ Example 1(static):
 ```
 Output:
 
-    "four, one, three, two"
+    four, one, three, two
 
 Example 2(static):
 ```sql
@@ -105,7 +105,7 @@ Example 2(static):
 ```
 Output:
 
-    "t.id = q.id AND t.type = q.type"
+    t.id = q.id AND t.type = q.type
 
 ### Type Specification
 
@@ -232,22 +232,35 @@ that package for additional detail.
 - p_csv VARCHAR2 or CLOB
     - A string expected to contain CSV data, generally comma separated and possibly double quoted
 - p_separator VARCHAR2
-    - The character between fields in the CSV data, generally comma.
+    - The character between fields in the CSV data. Default comma.
 - p_keep_nulls VARCHAR2
     - If you want empty (NULL string) entries in your array, set this to 'Y'. You could want this if you need placeholders or want actual NULL values to be used for the element. The default is 'N' to throw out NULL values from the CSV string.
 - p_strip_dquote VARCHAR2
-    - By default we strip the enclosing double quote marks for the field value if present. This also causes embedded occurences of '##' or '\\#' to be de-quoted.
+    - By default we strip the enclosing double quote marks for the field value if present. This also causes embedded occurences of `""` or `\\"` to be de-quoted. A value of 'N' for *p_strip_dquote* will leave double quoted strings with escaped double quotes intact.
 - p_expected_cnt NUMBER
-    - an optimization you generally will not be concerned with. See package for details
+    - an optimization you generally will not be concerned with. See *app_csv_pkg* documentation for details
 
 #### Parameters for Mapping Constructor
 
 - p_map_string VARCHAR2
     - A string that will populate each value of the array. On every instance the placeholder '$##index_val##' is replaced by the string of the numeric value between *p_first* and *p_last*. Note that this is not necessarily the same as the index into the array which will always start with 1.
 - p_last NUMBER
-    - The last index in the list
+    - The last value in the list
 - p_first NUMBER
-    - THe first index in the list
+    - The first value in the list. Defautl is 1.
+
+##### Example
+
+```sql
+    v_str := perlish_util_udt(p_map_string => 'x.pu.get($##index_val##) AS c$##index_val##'
+                              ,p_last => 3
+                             ).join(CHR(10)||',');
+```
+String v_str will contain:
+
+    x.pu.get(1) AS c1
+    ,x.pu.get(2) AS c2
+    ,x.pu.get(3) AS c3
 
 ### join
 
@@ -257,7 +270,7 @@ It works pretty much the same as Perl *join*.
 #### Parameters
 
 - p_separator VARCHAR2
-    - Value to place between array elements while constructing the string that is returned. The default is ',', but you might want something like <code>CHR(10)||'    ,'</code> to make it pretty.
+    - Value to place between array elements while constructing the string that is returned. The default is ',', but you might want something like `CHR(10)||'    ,'` to make it pretty.
 
 #### Discussion
 
@@ -275,7 +288,7 @@ END;
 ```
 Output:
 
-    "abc;def"
+    abc;def
 
 Contrast that with the following and consider you could chain additional methods if needed.
 
@@ -301,7 +314,7 @@ have likely been annoyed by before.
 
 ### sort
 
-Sort calls the SQL engine to sort the incoming list and returns a new
+*Sort* calls the SQL engine to sort the incoming list and returns a new
 *perlish_util_udt* object with the sorted results.
 
 #### Parameters
@@ -391,7 +404,7 @@ Given an expression:
 
 and the input list from the object instance plus the input array named *p_arr_b*,
 it loops through the elements substituting the value from the object instance array
-whereever '$\_a\_' occurs in the string, and the value from the array named *p_arr_b*
+wherever '$\_a\_' occurs in the string, and the value from the array named *p_arr_b*
 wherever '$\_b\_' occurs in the string. The result is stuffed into the return array
 at the same index. 
 
@@ -402,7 +415,7 @@ It returns a new *perlish_util_udt* object with the transformed/combined element
 - p_expr VARCHAR2
     - A string that will be put into each element of the output array. The values '$\_a\_' and '$\_b\_' are replaced by the corresponding elements of the two input arrays (first of which is the instance invoking the method).
 - p_arr_b ARR_VARCHAR2_UDT
-    - The second array of elements -- the ones that replace '$\_b\_'. Note that this is not a *perlish_util_udt* object. If you have one named *v_pu_b* you will specify the parameter as <code>p_arr_b => v_pu_b.get -- or v_pu_b.arr</code>.
+    - The second array of elements -- the ones that replace '$\_b\_'. Note that this is not a *perlish_util_udt* object. If you have one named *v_pu_b* you will specify the parameter as `p_arr_b => v_pu_b.get -- or v_pu_b.arr`.
 - p_a   VARCHAR2
     - The placeholder string for elements from the invoking instance array. Default is '$\_a\_'.
 - p_b   VARCHAR2
@@ -437,7 +450,7 @@ END;
 For our example if the first element of our object array was 'abc'
 and the first element of *p_arr_b* was 'xyz' we would get
 
-    'abc combines with xyz'
+    abc combines with xyz
 
 in the first element of the returned array object. Contrast with the SQL way to do the same thing.
 
