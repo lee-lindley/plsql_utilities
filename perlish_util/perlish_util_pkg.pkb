@@ -211,7 +211,8 @@ SELECT
                               ).join(CHR(10)||'    ,')
             ||q'{
 FROM a t
-WHERE rn BETWEEN :first_row AND :last_row}';
+WHERE rn BETWEEN :first_row AND :last_row
+ORDER BY rn}';
 
         OPEN v_src FOR v_sql USING p_arr_arr, NVL(p_skip_rows,0)+1, p_arr_arr.COUNT - NVL(p_trim_rows,0);
         RETURN v_src;

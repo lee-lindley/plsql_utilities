@@ -248,8 +248,9 @@ SELECT wget(a.arr,1) AS c1}';
         END LOOP;
         v_sql := v_sql||q'{
 FROM a
+WHERE rn BETWEEN :first_row AND :last_row
 ORDER BY rn
-WHERE rn BETWEEN :first_row AND :last_row}';
+}';
 
         OPEN v_src FOR v_sql USING p_arr_arr, NVL(p_skip_rows,0)+1, p_arr_arr.COUNT - NVL(p_trim_rows,0);
         RETURN v_src;
