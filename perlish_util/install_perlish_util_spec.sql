@@ -3,7 +3,7 @@ whenever sqlerror exit failure
 -- specs before bodies because they intertwine
 prompt calling perlish_util_udt.tps
 @@perlish_util_udt.tps
-prompt calling perlish_util_pkg.pks
-@@perlish_util_pkg.pks
 prompt arr_perlish_util_udt.tps
 @@arr_perlish_util_udt.tps
+prompt calling perlish_util_pkg.pks
+@@perlish_util_pkg.pks
