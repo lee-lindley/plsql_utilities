@@ -1,6 +1,6 @@
 BEGIN -- because need compile directives we have to do this with strings
 EXECUTE IMMEDIATE q'[
-CREATE OR REPLACE TYPE app_job_log_udt UNDER app_log_udt (
+CREATE OR REPLACE TYPE app_job_log_udt FORCE UNDER app_log_udt (
 -- documentation at https://github.com/lee-lindley/plsql_utilities
     -- We are a subtype of app_log_udt. 
     -- We inherit attributes app_id, app_name
