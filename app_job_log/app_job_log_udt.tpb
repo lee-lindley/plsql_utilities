@@ -69,10 +69,11 @@ $end
 
     MEMBER PROCEDURE jstart(
         SELF IN OUT app_job_log_udt
+        ,p_msg      VARCHAR2
     )
     IS
     BEGIN
-        SELF.log_p('START job '||app_name);
+        SELF.log_p('START job '||app_name||CASE WHEN p_msg IS NOT NULL THEN ' '||p_msg END);
     END;
 
     MEMBER PROCEDURE jfailed(

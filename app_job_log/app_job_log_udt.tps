@@ -27,6 +27,7 @@ $end
     -- calling the constructuor. Puts a standard message in the log
     ,MEMBER PROCEDURE jstart(
         SELF IN OUT app_job_log_udt
+        ,p_msg      VARCHAR2 DEFAULT NULL
     )
     -- call jdone (job done) upon successful completion of an entire job
     ,MEMBER PROCEDURE jdone(
@@ -128,7 +129,8 @@ $end
                 RAISE;
             END;
     */
-);
+) NOT FINAL
+;
 ]'; -- end execute immediate
 END; -- end anonymous block
 /

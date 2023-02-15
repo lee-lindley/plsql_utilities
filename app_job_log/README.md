@@ -14,6 +14,8 @@ logging makes it convenient to create analytic queries to analyze job history. A
 job scheduling tool likely provides a way to do this, the database logs may give you greater
 flexibility.
 
+The type is declared NOT FINAL so that it may be subtyped.
+
 The type is optionally compiled with support for sending an email message for job failure
 using [html_email](https://github.com/lee-lindley/html_email). Assuming you have already
 installed *html_email*, see *app_job_log/install_app_job_log.sql*
@@ -32,6 +34,7 @@ The method interface for *app_job_log_udt* is (assuming use_html_email==TRUE):
     -- calling the constructuor. Puts a standard message in the log
     ,MEMBER PROCEDURE jstart(
         SELF IN OUT app_job_log_udt
+        ,p_msg      VARCHAR2 DEFAULT NULL
     )
     -- call jdone (job done) upon successful completion of an entire job
     ,MEMBER PROCEDURE jdone(
