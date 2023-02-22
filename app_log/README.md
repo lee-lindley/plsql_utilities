@@ -11,7 +11,7 @@ it (or something like it) is indispensable for debugging and development.
 |:--:|
 | ![app_log Use Case Diagram](../images/app_log_use_case.gif) |
 -->
-<p align="center">app_log ER Diagram</p>
+<p align="center">app_log Use Case Diagram</p>
 <p align="center"><img src="../images/app_log_use_case.gif"></p>
 
 
