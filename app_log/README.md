@@ -6,10 +6,17 @@ time-stamped log records to a table.  Since the autonomous transactions write in
 you can get status of the program before "successful" completion that might be
 required for dbms_output. In addition to generally useful logging, 
 it (or something like it) is indispensable for debugging and development.
-
+<!--
 | app_log ER Diagram |
 |:--:|
 | ![app_log Use Case Diagram](../images/app_log_use_case.gif) |
+-->
+<p align="center" width="100%">
+| app_log ER Diagram |
+|:--:|
+| <img width="100%" src="../images/app_log_use_case.gif"> |
+</p>
+
 
 The pattern is to keep the base logging mechanism extremly simple, fast and light-weight. 
 Additional functionality can be built upon it by standardizing the message content. Comma
