@@ -11,7 +11,7 @@ it (or something like it) is indispensable for debugging and development.
 |:--:|
 | ![app_log Use Case Diagram](../images/app_log_use_case.gif) |
 -->
-<p align="center">app\_log ER Diagram</p>
+<p align="center">app_log ER Diagram</p>
 <p align="center"><img src="../images/app_log_use_case.gif"></p>
 
 
@@ -33,9 +33,13 @@ Convenience views join the key and log tables as well as provide example analyti
 the time between records.
 
 
+<!--
 | app_log ER Diagram |
 |:--:|
 | ![app_log ER Diagram](../images/app_log_er.png) |
+-->
+<p align="center">app_log ER Diagram</p>
+<p align="center"><img src="../images/app_log_er.png"></p>
 
 # Details
 The type specification is declared with the *NOT FINAL* clause so that it is eligible
