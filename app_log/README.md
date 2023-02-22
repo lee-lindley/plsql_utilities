@@ -9,7 +9,7 @@ it (or something like it) is indispensable for debugging and development.
 
 | app_log ER Diagram |
 |:--:|
-| ![app_log ER Diagram](../images/app_log_er.png) |
+| ![app_log Use Case Diagram](../images/app_log_use_case.gif) |
 
 The pattern is to keep the base logging mechanism extremly simple, fast and light-weight. 
 Additional functionality can be built upon it by standardizing the message content. Comma
