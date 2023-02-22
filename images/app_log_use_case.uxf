@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<diagram program="umlet" version="15.0.0">
+  <zoom_level>10</zoom_level>
+  <element>
+    <id>UMLClass</id>
+    <coordinates>
+      <x>1080</x>
+      <y>220</y>
+      <w>270</w>
+      <h>350</h>
+    </coordinates>
+    <panel_attributes>Oracle Database Server
+--</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>UMLUseCase</id>
+    <coordinates>
+      <x>1130</x>
+      <y>270</y>
+      <w>170</w>
+      <h>110</h>
+    </coordinates>
+    <panel_attributes>Capture Application
+Events and Values
+bg=CYAN</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>UMLActor</id>
+    <coordinates>
+      <x>910</x>
+      <y>270</y>
+      <w>120</w>
+      <h>120</h>
+    </coordinates>
+    <panel_attributes>SQL or PL/SQL
+Program Unit</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>UMLUseCase</id>
+    <coordinates>
+      <x>1130</x>
+      <y>410</y>
+      <w>170</w>
+      <h>110</h>
+    </coordinates>
+    <panel_attributes>Analyze Application
+Behavior, History,
+Errors, Performance
+bg=CYAN</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>UMLActor</id>
+    <coordinates>
+      <x>900</x>
+      <y>410</y>
+      <w>140</w>
+      <h>120</h>
+    </coordinates>
+    <panel_attributes>Developer/
+Production Support</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates>
+      <x>980</x>
+      <y>440</y>
+      <w>170</w>
+      <h>40</h>
+    </coordinates>
+    <panel_attributes/>
+    <additional_attributes>10.0;20.0;150.0;20.0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates>
+      <x>980</x>
+      <y>300</y>
+      <w>170</w>
+      <h>40</h>
+    </coordinates>
+    <panel_attributes/>
+    <additional_attributes>10.0;20.0;150.0;20.0</additional_attributes>
+  </element>
+</diagram>

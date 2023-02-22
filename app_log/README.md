@@ -7,12 +7,31 @@ you can get status of the program before "successful" completion that might be
 required for dbms_output. In addition to generally useful logging, 
 it (or something like it) is indispensable for debugging and development.
 
+| app_log ER Diagram |
+|:--:|
+| ![app_log ER Diagram](../images/app_log_er.png) |
+
+The pattern is to keep the base logging mechanism extremly simple, fast and light-weight. 
+Additional functionality can be built upon it by standardizing the message content. Comma
+separated Name=Value pairs (a la JSON) are a fine pattern to implement in log messages.
+
 # Design
 
+A lookup table (*app_log_app*) maintains unique keys by an "application identifier" *app_name*. The UDT code
+insures referential integrity when it writes log records (rather than a database referential integrity constraint
+which has a small cost on every write).
 
-| ![app_log ER Diagram](../images/app_log_er.png) |
-|:--:|
+There are a pair of log record tables, one of which is pointed to by the primary synonym *app_log*. A maintentace operation
+swaps the synonym when purging old records. A view *app_log_base_v* points to the currently active base log
+table via the synonym. Queries may use the synonym or the view. 
+
+Convenience views join the key and log tables as well as provide example analytic code for displaying
+the time between records.
+
+
 | app_log ER Diagram |
+|:--:|
+| ![app_log ER Diagram](../images/app_log_er.png) |
 
 # Details
 The type specification is declared with the *NOT FINAL* clause so that it is eligible
@@ -38,6 +57,8 @@ The method interface for *app_log_udt* is:
     -- break this procedure out standalone
     ,FINAL STATIC PROCEDURE purge_old(p_days NUMBER := 90)
 ```
+
+If the message is longer than 4000 characters, *log* will write each 4000 character chunk in sequential records.
 
 Example Usage:
 ```sql
