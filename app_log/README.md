@@ -7,6 +7,14 @@ you can get status of the program before "successful" completion that might be
 required for dbms_output. In addition to generally useful logging, 
 it (or something like it) is indispensable for debugging and development.
 
+# Design
+
+
+| ![app_log ER Diagram](../images/app_log_er.png) |
+|:--:|
+| app_log ER Diagram |
+
+# Details
 The type specification is declared with the *NOT FINAL* clause so that it is eligible
 to be a supertype.
 
