@@ -46,9 +46,10 @@ Program Unit</panel_attributes>
       <w>170</w>
       <h>110</h>
     </coordinates>
-    <panel_attributes>Analyze Application
-Behavior, History,
-Errors, Performance
+    <panel_attributes>Analyze or Debug 
+Application Behavior,
+History, Errors,
+Performance
 bg=CYAN</panel_attributes>
     <additional_attributes/>
   </element>
