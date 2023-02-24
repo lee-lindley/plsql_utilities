@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<diagram program="umlet" version="15.0.0">
+  <zoom_level>12</zoom_level>
+  <element>
+    <id>UMLClass</id>
+    <coordinates>
+      <x>1104</x>
+      <y>12</y>
+      <w>408</w>
+      <h>228</h>
+    </coordinates>
+    <panel_attributes>app_log_udt
+--
+-app_id: NUMBER(38)
+-app_name: VARCHAR2(30)
+--
+-log(in p_msg :VARCHAR2)
+-log_p(in p_msg :VARCHAR2)
+-app_log_udt_constructor(
+    in out SELF :APP_LOG_UDT
+   ,in p_app_name :VARCHAR2
+  )
+-purge_old(in p_days :NUMBER=90)
+</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>UMLClass</id>
+    <coordinates>
+      <x>1104</x>
+      <y>300</y>
+      <w>408</w>
+      <h>528</h>
+    </coordinates>
+    <panel_attributes>app_job_log_udt
+--
+/+caller_email: VARCHAR2/
+--
+-app_id: NUMBER(38)
+-app_name: VARCHAR2(30)
+--
++jstart(in p_msg :VARCHAR2=NULL)
++jdone(in p_msg :VARCHAR2=NULL)
++log_trace(
+    in p_msg :CLOB=NULL
+   ,in p_backtrace :CLOB=NULL
+   ,in p_callstack :CLOB=NULL
+/   ,in p_do_email :BOOLEAN=FALSE/
+  )
++jfailed(
+    in p_msg :CLOB=NULL
+   ,in p_backtrace :CLOB=NULL
+   ,in p_callstack :CLOB=NULL
+/   ,in p_do_email :BOOLEAN=FALSE/
+  )
+/+add_email_address(in p_email_to :VARCHAR2)/
+--
+-log(in p_msg :VARCHAR2)
+-log_p(in p_msg :VARCHAR2)
+-app_log_udt_constructor(
+    in out SELF :APP_LOG_UDT
+   ,in p_app_name :VARCHAR2
+  )
+</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates>
+      <x>1284</x>
+      <y>228</y>
+      <w>36</w>
+      <h>96</h>
+    </coordinates>
+    <panel_attributes>lt=&lt;&lt;-</panel_attributes>
+    <additional_attributes>10.0;10.0;10.0;60.0</additional_attributes>
+  </element>
+  <element>
+    <id>UMLClass</id>
+    <coordinates>
+      <x>1104</x>
+      <y>888</y>
+      <w>408</w>
+      <h>540</h>
+    </coordinates>
+    <panel_attributes>fdr_job_log_udt
+--
++job_run_id: INTEGER
+--
+-app_id: NUMBER(38)
+-app_name: VARCHAR2(30)
+--
++j_start(in p_msg :VARCHAR2=NULL)
+--
+-jstart(in p_msg :VARCHAR2=NULL)
+-jdone(in p_msg :VARCHAR2=NULL)
+-log_trace(
+    in p_msg :CLOB=NULL
+   ,in p_backtrace :CLOB=NULL
+   ,in p_callstack :CLOB=NULL
+/   ,in p_do_email :BOOLEAN=FALSE/
+  )
+-jfailed(
+    in p_msg :CLOB=NULL
+   ,in p_backtrace :CLOB=NULL
+   ,in p_callstack :CLOB=NULL
+/   ,in p_do_email :BOOLEAN=FALSE/
+  )
+-log(in p_msg :VARCHAR2)
+-log_p(in p_msg :VARCHAR2)
+-app_log_udt_constructor(
+    in out SELF :APP_LOG_UDT
+   ,in p_app_name :VARCHAR2
+  )
+</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates>
+      <x>1284</x>
+      <y>816</y>
+      <w>36</w>
+      <h>96</h>
+    </coordinates>
+    <panel_attributes>lt=&lt;&lt;-</panel_attributes>
+    <additional_attributes>10.0;10.0;10.0;60.0</additional_attributes>
+  </element>
+</diagram>

@@ -1,6 +1,6 @@
 # app_job_log
 
-An extension of logging for batch jobs.
+An extension of *app_log* logging for batch jobs.
 
 - mark start and end of a batch job
 - report errors in standardized format
@@ -13,6 +13,9 @@ of a PL/SQL procedure EXCEPTION block. The standard message pattern for job star
 logging makes it convenient to create analytic queries to analyze job history. Although your
 job scheduling tool likely provides a way to do this, the database logs may give you greater
 flexibility.
+
+<p align="center">app_job_log CLASS Diagram</p
+<p align="center"><img src="../images/app_job_log_class.png"></p>
 
 The type is declared NOT FINAL so that it may be subtyped.
 
