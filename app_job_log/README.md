@@ -14,7 +14,7 @@ logging makes it convenient to create analytic queries to analyze job history. A
 job scheduling tool likely provides a way to do this, the database logs may give you greater
 flexibility.
 
-<p align="center">app_job_log CLASS Diagram</p
+<p align="center">app_job_log CLASS Diagram</p>
 <p align="center"><img src="../images/app_job_log_class.png"></p>
 
 The type is declared NOT FINAL so that it may be subtyped.
