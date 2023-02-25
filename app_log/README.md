@@ -2,8 +2,8 @@
 
 A lightweight and fast general purpose database application logging facility, 
 the core is an object oriented user defined type (UDT) with methods for writing 
-high precision time-stamped log records to a table.  Since the autonomous transactions write independently,
-you can get status of the program before "successful" completion that might be
+high precision, time-stamped log records to a table.  Since the autonomous transactions write independently,
+you can retrieve status of the program before "successful" completion that might be
 required for DBMS_OUTPUT. In addition to generally useful logging, 
 it (or something like it) is indispensable for debugging, development, and tuning.
 
@@ -12,7 +12,7 @@ it (or something like it) is indispensable for debugging, development, and tunin
 |:--:|
 | ![app_log Use Case Diagram](../images/app_log_use_case.gif) |
 -->
-<p align="center">app_log Use Case Diagram</p>
+<p align="center">app_log_udt Use Case Diagram</p>
 <p align="center"><img src="../images/app_log_use_case.png"></p>
 
 Additional functionality can be built upon the basic log message
