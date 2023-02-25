@@ -139,8 +139,8 @@ from app_log_tail_v
 | | | | |
 |07:42.18.66|    .0002|START job MY_DAILY_JOB|MY_DAILY_JOB|
 |07:42.18.66|    .0001|start of long running dml|MY_DAILY_JOB|
-|07:42.21.69|   3.0285|ORA-00923| FROM keyword not found where expected|MY_DAILY_JOB|
-|07:42.21.69|    .0007|backtrace| ORA-06512| at line 15 |MY_DAILY_JOB|
-|07:42.21.69|    .0029|callstack| ----- PL/SQL Call Stack -----<br/> object      line  object<br/> handl|MY_DAILY_JOB|
+|07:42.21.69|   3.0285|ORA-00923: FROM keyword not found where expected|MY_DAILY_JOB|
+|07:42.21.69|    .0007|backtrace: ORA-06512: at line 15 |MY_DAILY_JOB|
+|07:42.21.69|    .0029|callstack: ----- PL/SQL Call Stack -----<br/> object      line  object<br/> handl|MY_DAILY_JOB|
 |07:42.21.69|    .0008|FAILED job MY_DAILY_JOB|MY_DAILY_JOB|
 
