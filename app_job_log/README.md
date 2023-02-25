@@ -95,18 +95,23 @@ The method interface for *app_job_log_udt* is (assuming use_html_email==TRUE):
 Example Usage:
 
 ```sql
-    CREATE OR REPLACE PROCEDURE my_job_procedure 
-    IS
-        ...
-        v_log   app_job_log_udt := app_job_log_udt('MY_DAILY_JOB', 'appsupport@mycompany.com');
+    DECLARE
+        v_log   app_job_log_udt := app_job_log_udt('MY_DAILY_JOB');
     BEGIN
         v_log.jstart;
-        ...
         v_log.log_p('start of long running dml'); 
-        ...
+        dbms_lock.sleep(3);
+        execute immediate 'select sysdate from dual';
         v_log.log_p('inserted '||TO_CHAR(SQL%ROWCOUNT)||' records into table whatever_table');
-        COMMIT;
-        ...
+       -- COMMIT;
+        v_log.jdone;
+ -- pretend new job starting
+        v_log.jstart;
+        v_log.log_p('start of long running dml'); 
+        dbms_lock.sleep(3);
+        execute immediate 'select i gonna blow up now';
+        v_log.log_p('inserted '||TO_CHAR(SQL%ROWCOUNT)||' records into table whatever_table');
+       -- COMMIT;
         v_log.jdone;
     EXCEPTION WHEN OTHERS THEN
         v_log.jfailed(
@@ -118,6 +123,24 @@ Example Usage:
         );
         ROLLBACK;
         RAISE;
-    END my_job_procedure;
+    END ;
+/
+-- This view prunes the messages to 75 characters
+select *
+from app_log_tail_v
+;
 ```
+|TIME_STAMP|ELAPSED|LOGMSG|APP_NAME|
+|----------|-------|------|--------|
+|07:42.15.61| 548.6542|START job MY_DAILY_JOB|MY_DAILY_JOB|
+|07:42.15.61|    .0009|start of long running dml|MY_DAILY_JOB|
+|07:42.18.66|   3.0491|inserted 0 records into table whatever_table|MY_DAILY_JOB|
+|07:42.18.66|    .0002|DONE job MY_DAILY_JOB|MY_DAILY_JOB|
+| | | | |
+|07:42.18.66|    .0002|START job MY_DAILY_JOB|MY_DAILY_JOB|
+|07:42.18.66|    .0001|start of long running dml|MY_DAILY_JOB|
+|07:42.21.69|   3.0285|ORA-00923: FROM keyword not found where expected|MY_DAILY_JOB|
+|07:42.21.69|    .0007|backtrace: ORA-06512: at line 15 |MY_DAILY_JOB|
+|07:42.21.69|    .0029|callstack: ----- PL/SQL Call Stack -----<br/> object      line  object<br/> handl|MY_DAILY_JOB|
+|07:42.21.69|    .0008|FAILED job MY_DAILY_JOB|MY_DAILY_JOB|
 
