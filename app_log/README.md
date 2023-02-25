@@ -1,11 +1,12 @@
 # app_log
 
 A lightweight and fast general purpose database application logging facility, 
-the core is an object oriented user defined type with methods for writing 
-time-stamped log records to a table.  Since the autonomous transactions write independently,
+the core is an object oriented user defined type (UDT) with methods for writing 
+high precision time-stamped log records to a table.  Since the autonomous transactions write independently,
 you can get status of the program before "successful" completion that might be
-required for dbms_output. In addition to generally useful logging, 
-it (or something like it) is indispensable for debugging and development.
+required for DBMS_OUTPUT. In addition to generally useful logging, 
+it (or something like it) is indispensable for debugging, development, and tuning.
+
 <!--
 | app_log ER Diagram |
 |:--:|
@@ -14,10 +15,23 @@ it (or something like it) is indispensable for debugging and development.
 <p align="center">app_log Use Case Diagram</p>
 <p align="center"><img src="../images/app_log_use_case.png"></p>
 
-
-The pattern is to keep the base logging mechanism extremly simple, fast and light-weight. 
-Additional functionality can be built upon it by standardizing the message content. Comma
+Additional functionality can be built upon the basic log message
+by standardizing the content. Comma
 separated Name=Value pairs (a la JSON) are a fine pattern to implement in log messages.
+
+The prime directive is to avoid imposing a measurable cost in resources,
+nor be a point of contention or blocking for the application. Consumers of
+the log are expected to be developers and support personnel who can afford to put
+a little elbow grease into extracting information. You can parse the messages,
+write analytic queries to reach between messages,
+and afford to read the entire log table. We do not coddle you with indexes or
+extra fields to make querying easier. You don't need it and the application writing the log
+should not bear the burden of providing it.
+
+*app_log_udt* was implemented on a large, multi-node Exadata cluster for an application that served
+SOA packages to a web front-end. During peak hours the application was writing more than 300,000 log
+records per minute with no measurable performance difference observable between logging turned on and off.
+This was true even during a log purge operation.
 
 # Design
 
@@ -32,7 +46,6 @@ table via the synonym. Queries may use the synonym or the view.
 Convenience views join the key and log tables as well as provide example analytic code for displaying
 the time between records.
 
-
 <!--
 | app_log ER Diagram |
 |:--:|
@@ -43,7 +56,7 @@ the time between records.
 
 # Details
 The type specification is declared with the *NOT FINAL* clause so that it is eligible
-to be a supertype.
+to be a supertype. (See *app_job_log_udt* for an example subtype).
 
 The method interface for *app_log_udt* is:
 ```sql
