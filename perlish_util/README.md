@@ -22,6 +22,7 @@ A *perlish_util_udt* object instance holds an *arr_varchar2_udt* collection attr
 
 - map
 - join
+- join2clob
 - sort
 - get
 - count
@@ -58,18 +59,33 @@ Example 3:
 ```sql
     SELECT perlish_util_udt('id, type').map('  t.$_ = q.$_').join(',') FROM dual;
 ```
+Output:
 
     "  t.id = q.id,
         t.type = q.type"
+
 Example 4:
 ```sql
     SELECT perlish_util_udt('id, type').map('x.p.get($##index_val##) AS "$_"').join(', ') FROM dual;
 ```
+Output:
+
     x.p.get(1) AS "id", x.p.get(2) AS "type"
 
 There are static versions of all of the methods. You do not have to create an
 object or use the object method syntax. You can use each of them independently as if they
 were in a package named *perlish_util_udt*.
+
+Example 0(static) (*LISTAGG* functionality returning CLOB, no 4000 char limitation):
+
+```sql
+SELECT perlish_util_udt.join2clob( CAST( COLLECT(column_name ORDER BY column_id) AS arr_varchar2_udt ), ', ') AS collist
+FROM dba_tab_columns
+WHERE owner = 'HR' AND table_name = 'EMPLOYEES';
+```
+Output:
+
+    EMPLOYEE_ID, FIRST_NAME, LAST_NAME, EMAIL, PHONE_NUMBER, HIRE_DATE, JOB_ID, SALARY, COMMISSION_PCT, MANAGER_ID, DEPARTMENT_ID
 
 Example 1(static):
 ```sql
@@ -310,7 +326,8 @@ END;
 Same as *join*, but returns CLOB. In PL/SQL it will not matter as VARCHAR2 and CLOB are equivalent
 in most situations. In SQL you will need *join2clob*
 if the returned string is longer than 4000 characters, something users of *LISTAGG* 
-have likely been annoyed by before.
+have likely been annoyed by before. There is a well known workaround to the 4000 character limitation
+of *LISTAGG* using *XMLAGG*. We provide another way with *join2clob*.
 
 ### sort
 
