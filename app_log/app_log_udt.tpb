@@ -29,7 +29,7 @@ CREATE OR REPLACE TYPE BODY app_log_udt AS
                 ;
             EXCEPTION WHEN NO_DATA_FOUND
             THEN 
-                v_not_found = 'Y'
+                v_not_found := 'Y';
             END;
             IF v_not_found = 'Y' THEN
                 BEGIN
@@ -38,8 +38,8 @@ CREATE OR REPLACE TYPE BODY app_log_udt AS
                     COMMIT;
                     EXIT;
                 EXCEPTION WHEN OTHERS THEN -- unique key constraint from simultaneous attempts to create new one
-                    SELF.app_id = NULL;
-                    v_not_found = 'N'; -- reset for next loop iteration
+                    SELF.app_id := NULL;
+                    v_not_found := 'N'; -- reset for next loop iteration
                 END;
             ELSE
                 EXIT;
