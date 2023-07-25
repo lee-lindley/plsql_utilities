@@ -44,6 +44,8 @@ CREATE OR REPLACE TYPE BODY app_log_udt AS
             ELSE
                 EXIT;
             END IF;
+            -- comment this out if you are on an oracle version prior to 18.
+            DBMS_SESSION.sleep(1);
         END LOOP;
         IF SELF.app_id IS NULL THEN
             raise_application_error(-20111,'failed to get unique key for app_name in app_log_udt constructor');
