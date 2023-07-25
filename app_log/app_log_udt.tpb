@@ -17,19 +17,37 @@ CREATE OR REPLACE TYPE BODY app_log_udt AS
     IS
         -- we create the log messages independent from the main body who may commit or rollback separately
         PRAGMA AUTONOMOUS_TRANSACTION;
+        v_not_found     VARCHAR2(1) := 'N';
     BEGIN
         app_name := UPPER(p_app_name);
-        BEGIN
-            SELECT app_id INTO SELF.app_id 
-            FROM app_log_app 
-            WHERE app_name = SELF.app_name
-            ;
-        EXCEPTION WHEN NO_DATA_FOUND
+        FOR i IN 1..3 -- could have simultaneous attempts to create new app_id
+        LOOP
+            BEGIN
+                SELECT app_id INTO SELF.app_id 
+                FROM app_log_app 
+                WHERE app_name = SELF.app_name
+                ;
+            EXCEPTION WHEN NO_DATA_FOUND
             THEN 
-                app_id := app_log_app_seq.NEXTVAL;
-                INSERT INTO app_log_app(app_id, app_name) VALUES (SELF.app_id, SELF.app_name);
-                COMMIT;
-        END;
+                v_not_found = 'Y'
+            END;
+            IF v_not_found = 'Y' THEN
+                BEGIN
+                    SELF.app_id := app_log_app_seq.NEXTVAL;
+                    INSERT INTO app_log_app(app_id, app_name) VALUES (SELF.app_id, SELF.app_name);
+                    COMMIT;
+                    EXIT;
+                EXCEPTION WHEN OTHERS THEN -- unique key constraint from simultaneous attempts to create new one
+                    SELF.app_id = NULL;
+                    v_not_found = 'N'; -- reset for next loop iteration
+                END;
+            ELSE
+                EXIT;
+            END IF;
+        END LOOP;
+        IF SELF.app_id IS NULL THEN
+            raise_application_error(-20111,'failed to get unique key for app_name in app_log_udt constructor');
+        END IF;
     END app_log_udt_constructor; 
 
     FINAL MEMBER PROCEDURE log(p_msg VARCHAR2)
