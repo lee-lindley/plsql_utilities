@@ -1,11 +1,11 @@
-CREATE OR REPLACE PACKAGE app_csv_pkg 
+CREATE OR REPLACE PACKAGE &&compile_schema..app_csv_pkg 
 AUTHID CURRENT_USER
 AS
 -- documentation at https://github.com/lee-lindley/plsql_utilities
 /*
 MIT License
 
-Copyright (c) 2022 Lee Lindley
+Copyright (c) 2022,2023 Lee Lindley
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -144,9 +144,9 @@ $if DBMS_DB_VERSION.VERSION >= 18 $then
     PROCEDURE create_ptt_csv (
          -- creates private temporary table "ora$ptt_csv" with columns named in first row of data case preserved.
          -- All fields are varchar2(4000)
-	     p_clob         CLOB
-	    ,p_separator    VARCHAR2    DEFAULT ','
-	    ,p_strip_dquote VARCHAR2    DEFAULT 'Y' -- also unquotes \" and "" pairs within the field to just "
+	     p_clob             CLOB
+	    ,p_separator        VARCHAR2    DEFAULT ','
+	    ,p_strip_dquote     VARCHAR2    DEFAULT 'Y' -- also unquotes \" and "" pairs within the field to just "
 	)
     ;
 
@@ -172,6 +172,7 @@ $if DBMS_DB_VERSION.VERSION >= 18 $then
         ,p_num_format                   VARCHAR2 := NULL
         ,p_date_format                  VARCHAR2 := NULL
         ,p_interval_format              VARCHAR2 := NULL
+        ,p_timestamp_format             VARCHAR2 := NULL
     ) RETURN TABLE PIPELINED 
         TABLE -- so can ORDER the input
         --ROW 
@@ -199,6 +200,7 @@ $if DBMS_DB_VERSION.VERSION >= 18 $then
         ,p_num_format                   VARCHAR2 := NULL
         ,p_date_format                  VARCHAR2 := NULL
         ,p_interval_format              VARCHAR2 := NULL
+        ,p_timestamp_format             VARCHAR2 := NULL
     ) RETURN CLOB
     ;
 
@@ -235,6 +237,7 @@ $if DBMS_DB_VERSION.VERSION >= 18 $then
         ,p_num_format                   VARCHAR2 := NULL
         ,p_date_format                  VARCHAR2 := NULL
         ,p_interval_format              VARCHAR2 := NULL
+        ,p_timestamp_format             VARCHAR2 := NULL
     );
     FUNCTION get_clob(
         p_sql                           CLOB
@@ -248,6 +251,7 @@ $if DBMS_DB_VERSION.VERSION >= 18 $then
         ,p_num_format                   VARCHAR2 := NULL
         ,p_date_format                  VARCHAR2 := NULL
         ,p_interval_format              VARCHAR2 := NULL
+        ,p_timestamp_format             VARCHAR2 := NULL
     ) RETURN CLOB
     ;
     PROCEDURE write_file(
@@ -275,6 +279,7 @@ $if DBMS_DB_VERSION.VERSION >= 18 $then
         ,p_num_format                   VARCHAR2 := NULL
         ,p_date_format                  VARCHAR2 := NULL
         ,p_interval_format              VARCHAR2 := NULL
+        ,p_timestamp_format             VARCHAR2 := NULL
     );
     PROCEDURE write_file(
          p_dir                          VARCHAR2
@@ -289,6 +294,7 @@ $if DBMS_DB_VERSION.VERSION >= 18 $then
         ,p_num_format                   VARCHAR2 := NULL
         ,p_date_format                  VARCHAR2 := NULL
         ,p_interval_format              VARCHAR2 := NULL
+        ,p_timestamp_format             VARCHAR2 := NULL
     );
 
     -- the describe and fetch procedures are used exclusively by the PTF mechanism. You cannot
@@ -303,6 +309,7 @@ $if DBMS_DB_VERSION.VERSION >= 18 $then
         ,p_num_format                   VARCHAR2 := NULL
         ,p_date_format                  VARCHAR2 := NULL
         ,p_interval_format              VARCHAR2 := NULL
+        ,p_timestamp_format             VARCHAR2 := NULL
     ) RETURN DBMS_TF.DESCRIBE_T
     ;
     PROCEDURE fetch_rows(
@@ -314,21 +321,22 @@ $if DBMS_DB_VERSION.VERSION >= 18 $then
         ,p_num_format                   VARCHAR2 := NULL
         ,p_date_format                  VARCHAR2 := NULL
         ,p_interval_format              VARCHAR2 := NULL
+        ,p_timestamp_format             VARCHAR2 := NULL
     )
     ;
     -- depends on same date/number defaults on deploy system as on one that creates this
     -- you might wind up messing with the column lists and doing explicit conversions
     FUNCTION gen_deploy_insert(
-        p_table_name    VARCHAR2
+        p_table_name    VARCHAR2 -- case sensitive!
         ,p_where_clause CLOB DEFAULT NULL
-        ,p_schema_name  VARCHAR2 DEFAULT NULL -- defaults to current_schema
+        ,p_schema_name  VARCHAR2 DEFAULT NULL -- case sensitive! defaults to current_schema
     ) RETURN CLOB
     ;
     FUNCTION gen_deploy_merge(
-        p_table_name    VARCHAR2
-        ,p_key_cols     VARCHAR2 -- CSV list
+        p_table_name    VARCHAR2 -- case sensitive!
+        ,p_key_cols     VARCHAR2 -- case sensitive! CSV list
         ,p_where_clause CLOB DEFAULT NULL
-        ,p_schema_name  VARCHAR2 DEFAULT NULL -- defaults to current_schema
+        ,p_schema_name  VARCHAR2 DEFAULT NULL -- case_sensitive! defaults to current_schema
     ) RETURN CLOB
     ;
 

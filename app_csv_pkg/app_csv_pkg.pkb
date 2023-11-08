@@ -1,8 +1,8 @@
-CREATE OR REPLACE PACKAGE BODY app_csv_pkg AS
+CREATE OR REPLACE PACKAGE BODY &&compile_schema..app_csv_pkg AS
 /*
 MIT License
 
-Copyright (c) 2022 Lee Lindley
+Copyright (c) 2022,2023 Lee Lindley
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -382,6 +382,7 @@ $if DBMS_DB_VERSION.VERSION >= 18 $then
         ,p_num_format                   VARCHAR2 := NULL
         ,p_date_format                  VARCHAR2 := NULL
         ,p_interval_format              VARCHAR2 := NULL
+        ,p_timestamp_format             VARCHAR2 := NULL
     ) RETURN CLOB
     IS
         v_clob                  CLOB;
@@ -403,7 +404,7 @@ $if DBMS_DB_VERSION.VERSION >= 18 $then
 )';
         END IF;
         v_clob := v_clob||q'[
-    SELECT * FROM app_csv_pkg.ptf(
+    SELECT * FROM &&compile_schema..app_csv_pkg.ptf(
                         p_tab                           => R_app_csv_pkg_ptf
                         ,p_header_row                   => ']'||p_header_row||q'['
                         ,p_separator                    => ']'||p_separator||q'['
@@ -415,6 +416,9 @@ $if DBMS_DB_VERSION.VERSION >= 18 $then
                 || q'[
                         ,p_date_format                  => ]'
                 || CASE WHEN p_date_format IS NULL THEN 'NULL' ELSE q'[']'||p_date_format||q'[']' END
+                || q'[
+                        ,p_timestamp_format             => ]'
+                || CASE WHEN p_timestamp_format IS NULL THEN 'NULL' ELSE q'[']'||p_timestamp_format||q'[']' END
                 || q'[
                         ,p_interval_format              => ]'
                 || CASE WHEN p_interval_format IS NULL THEN 'NULL' ELSE q'[']'||p_interval_format||q'[']' END
@@ -431,7 +435,7 @@ $if DBMS_DB_VERSION.VERSION >= 18 $then
         ,p_lf_only          VARCHAR2 := 'Y'
     )
     IS
-        v_tab_varchar2  DBMS_TF.tab_varchar2_t;
+        v_tab_varchar2  DBMS_TF.tab_varchar2_t; -- 32767
         v_line_end      VARCHAR2(2) := CASE WHEN p_lf_only IN ('Y','y') THEN CHR(10) ELSE CHR(13)||CHR(10) END;
     BEGIN
         p_rec_count := 0;
@@ -472,6 +476,7 @@ $if DBMS_DB_VERSION.VERSION >= 18 $then
         ,p_num_format                   VARCHAR2 := NULL
         ,p_date_format                  VARCHAR2 := NULL
         ,p_interval_format              VARCHAR2 := NULL
+        ,p_timestamp_format             VARCHAR2 := NULL
     )
     IS
         v_sql       CLOB := get_ptf_query_string(
@@ -482,6 +487,7 @@ $if DBMS_DB_VERSION.VERSION >= 18 $then
                                 ,p_num_format
                                 ,p_date_format
                                 ,p_interval_format
+                                ,p_timestamp_format
                             );
         v_src       SYS_REFCURSOR;
         ORA62558    EXCEPTION;
@@ -512,6 +518,7 @@ $if DBMS_DB_VERSION.VERSION >= 18 $then
         ,p_num_format                   VARCHAR2 := NULL
         ,p_date_format                  VARCHAR2 := NULL
         ,p_interval_format              VARCHAR2 := NULL
+        ,p_timestamp_format             VARCHAR2 := NULL
     ) RETURN CLOB
     IS
         v_clob      CLOB;
@@ -527,6 +534,7 @@ $if DBMS_DB_VERSION.VERSION >= 18 $then
             ,p_num_format                   => p_num_format
             ,p_date_format                  => p_date_format
             ,p_interval_format              => p_interval_format
+            ,p_timestamp_format             => p_timestamp_format
         );
         RETURN v_clob;
     END;
@@ -593,6 +601,7 @@ $if DBMS_DB_VERSION.VERSION >= 18 $then
         ,p_num_format                   VARCHAR2 := NULL
         ,p_date_format                  VARCHAR2 := NULL
         ,p_interval_format              VARCHAR2 := NULL
+        ,p_timestamp_format             VARCHAR2 := NULL
     ) IS
         v_sql       CLOB := get_ptf_query_string(
                                 p_sql
@@ -602,6 +611,7 @@ $if DBMS_DB_VERSION.VERSION >= 18 $then
                                 ,p_num_format
                                 ,p_date_format
                                 ,p_interval_format
+                                ,p_timestamp_format
                             );
         v_src           SYS_REFCURSOR;
         ORA62558        EXCEPTION;
@@ -639,6 +649,7 @@ $if DBMS_DB_VERSION.VERSION >= 18 $then
         ,p_num_format                   VARCHAR2 := NULL
         ,p_date_format                  VARCHAR2 := NULL
         ,p_interval_format              VARCHAR2 := NULL
+        ,p_timestamp_format             VARCHAR2 := NULL
     ) IS
         v_x             NUMBER;
     BEGIN
@@ -653,6 +664,7 @@ $if DBMS_DB_VERSION.VERSION >= 18 $then
             ,p_num_format                   => p_num_format
             ,p_date_format                  => p_date_format
             ,p_interval_format              => p_interval_format
+            ,p_timestamp_format             => p_timestamp_format
         );
     END write_file
     ;
@@ -672,6 +684,7 @@ $if DBMS_DB_VERSION.VERSION >= 18 $then
         ,p_num_format                   VARCHAR2 := NULL
         ,p_date_format                  VARCHAR2 := NULL
         ,p_interval_format              VARCHAR2 := NULL
+        ,p_timestamp_format             VARCHAR2 := NULL
     ) RETURN DBMS_TF.DESCRIBE_T
     AS
         v_new_cols              DBMS_TF.columns_new_t;
@@ -707,6 +720,7 @@ $if DBMS_DB_VERSION.VERSION >= 18 $then
         ,p_num_format                   VARCHAR2 := NULL
         ,p_date_format                  VARCHAR2 := NULL
         ,p_interval_format              VARCHAR2 := NULL
+        ,p_timestamp_format             VARCHAR2 := NULL
     ) AS
         v_env               DBMS_TF.env_t := DBMS_TF.get_env();
         v_rowset            DBMS_TF.row_set_t;  -- the input rowset of CSV rows
@@ -731,7 +745,7 @@ $if DBMS_DB_VERSION.VERSION >= 18 $then
             ,p_row_index    BINARY_INTEGER
         ) RETURN VARCHAR2
         IS
-            v_s VARCHAR2(4000);
+            v_s VARCHAR2(32767);
         BEGIN
             v_s := CASE WHEN v_conv_fmts.EXISTS(p_col_index) THEN
                       '"'
@@ -791,6 +805,9 @@ $if DBMS_DB_VERSION.VERSION >= 18 $then
             IF p_date_format IS NOT NULL AND v_env.get_columns(i).type = DBMS_TF.type_date
             THEN
                 v_conv_fmts(i) := t_conv_fmt(DBMS_TF.type_date, p_date_format);
+            ELSIF p_timestamp_format IS NOT NULL AND v_env.get_columns(i).type = DBMS_TF.type_timestamp
+            THEN
+                v_conv_fmts(i) := t_conv_fmt(DBMS_TF.type_timestamp, p_timestamp_format);
             ELSIF p_num_format IS NOT NULL AND v_env.get_columns(i).type = DBMS_TF.type_number
             THEN
                 v_conv_fmts(i) := t_conv_fmt(DBMS_TF.type_number, p_num_format);
@@ -972,9 +989,9 @@ $if DBMS_DB_VERSION.VERSION >= 18 $then
          -- creates private temporary table "ora$ptt_csv" with columns named in first row of data case preserved.
          -- All fields are varchar2(4000)
          --
-	     p_clob         CLOB
-	    ,p_separator    VARCHAR2    DEFAULT ','
-	    ,p_strip_dquote VARCHAR2    DEFAULT 'Y' -- also unquotes \" and "" pairs within the field to just "
+         p_clob             CLOB
+	    ,p_separator        VARCHAR2    DEFAULT ','
+	    ,p_strip_dquote     VARCHAR2    DEFAULT 'Y' -- also unquotes \" and "" pairs within the field to just "
 	) IS
         v_cols      perlish_util_udt;
         v_sql       CLOB;
@@ -982,7 +999,7 @@ $if DBMS_DB_VERSION.VERSION >= 18 $then
     BEGIN
         BEGIN
             SELECT s INTO v_first_row 
-            FROM TABLE( app_csv_pkg.split_clob_to_lines(p_clob, p_max_lines => 1) )
+            FROM TABLE( &&compile_schema..app_csv_pkg.split_clob_to_lines(p_clob, p_max_lines => 1) )
             ;
             IF v_first_row IS NULL THEN
                 raise_application_error(-20222,'app_csv_pkg.create_ptt_csv did not find csv rows in input clob.');
@@ -1005,7 +1022,7 @@ $if DBMS_DB_VERSION.VERSION >= 18 $then
 
         v_sql := 'CREATE PRIVATE TEMPORARY TABLE ora$ptt_csv(
 '
-            ||v_cols.map('"$_"    VARCHAR2(4000)').join('
+            ||v_cols.map( '"$_"    VARCHAR2(4000)' ).join('
 ,')
             ||'
 )'
@@ -1021,11 +1038,11 @@ $if DBMS_DB_VERSION.VERSION >= 18 $then
         --
         v_sql := q'[INSERT /*+ APPEND WITH_PLSQL */ INTO ora$ptt_csv 
 WITH a AS (
-    SELECT perlish_util_udt(t.arr) AS pu
+    SELECT &&compile_schema..perlish_util_udt(t.arr) AS pu
     FROM TABLE(
-                app_csv_pkg.split_lines_to_fields(
+                &&compile_schema..app_csv_pkg.split_lines_to_fields(
                     CURSOR(SELECT * 
-                           FROM TABLE( app_csv_pkg.split_clob_to_lines(:p_clob, p_skip_lines => 1) )
+                           FROM TABLE( &&compile_schema..app_csv_pkg.split_clob_to_lines(:p_clob, p_skip_lines => 1) )
                     )
                     , p_separator => :p_separator, p_strip_dquote => :p_strip_dquote, p_keep_nulls => 'Y'
                 )
@@ -1053,18 +1070,64 @@ FROM a X';
     ) RETURN CLOB
     IS
         v_sql   CLOB;
+        v_arr_select_column &&d_arr_varchar2_udt.;
+        v_arr_col_names     &&d_arr_varchar2_udt.;
+        v_has_clob          VARCHAR2(1);
     BEGIN
+
+        WITH dt AS (
+            SELECT 
+                 column_id
+                ,data_type
+                ,column_name 
+                ,CASE 
+                    WHEN data_type = 'DATE' THEN 'TO_DATE("'||column_name||q'{", 'MM/DD/YYYY HH24:MI:SS') AS "}'||column_name||'"'
+                    WHEN data_type LIKE 'TIMESTAMP%' THEN 'TO_TIMESTAMP("'||column_name||q'{", 'MM/DD/YYYY HH24:MI:SS.FF') AS "}'||column_name||'"'
+                    --WHEN data_type = 'CLOB' THEN 'TO_CLOB("'||column_name||'") AS "'||column_name||'"'
+                    WHEN data_type IN ('FLOAT','NUMBER') THEN 'TO_NUMBER("'||column_name||'") AS "'||column_name||'"'
+                    WHEN data_type = 'BINARY_DOUBLE' THEN 'TO_BINARY_DOUBLE("'||column_name||'") AS "'||column_name||'"'
+                    WHEN data_type = 'BINARY_FLOAT' THEN 'TO_BINARY_FLOAT("'||column_name||'") AS "'||column_name||'"'
+                    ELSE '"'||column_name||'"'
+                END AS select_column
+            FROM all_tab_columns
+            WHERE owner = NVL(p_schema_name, SYS_CONTEXT('USERENV','CURRENT_SCHEMA'))
+                AND table_name = p_table_name
+        ) SELECT CAST(COLLECT(column_name ORDER BY column_id) AS &&compile_schema..&&d_arr_varchar2_udt.) AS cns
+            ,CAST(COLLECT(select_column ORDER BY column_id) AS &&compile_schema..&&d_arr_varchar2_udt.) AS scns
+            ,MAX(CASE WHEN data_type = 'CLOB' THEN 'Y' END) AS has_clob
+        INTO v_arr_col_names, v_arr_select_column, v_has_clob
+        FROM dt
+        ;
+        IF v_has_clob = 'Y' THEN
+            raise_application_error(-20002, 'One or more columns are CLOB which is not supported');
+        END IF;
+
         v_sql := 'SELECT * FROM '||CASE WHEN p_schema_name IS NOT NULL THEN p_schema_name||'.' END||p_table_name;
         IF p_where_clause IS NOT NULL THEN
-            v_sql := v_sql||' WHERE '||p_where_clause;
+            v_sql := v_sql||'
+WHERE '||p_where_clause;
         END IF;
         RETURN 'BEGIN
-    APP_CSV_PKG.create_ptt_csv('||APP_LOB.clobtoliterals(p_clob => get_clob(p_sql => v_sql), p_split_on_lf => 'Y')||'
+    &&compile_schema..APP_CSV_PKG.create_ptt_csv('
+            ||APP_LOB.clobtoliterals(
+                p_clob          => get_clob(
+                                            p_sql               => v_sql
+                                            ,p_date_format      => 'MM/DD/YYYY HH24:MI:SS'
+                                            ,p_timestamp_format => 'MM/DD/YYYY HH24:MI:SS.FF'
+                                           )
+                ,p_split_on_lf  => 'Y'
+              )
+            ||'
 );
 END;
-'||'/
-INSERT INTO '||p_table_name||'
-SELECT *
+'
+            ||'/
+INSERT INTO '||CASE WHEN p_schema_name IS NOT NULL THEN p_schema_name||'.' END ||p_table_name||'
+SELECT
+    '
+            ||perlish_util_udt(v_arr_select_column).join('
+    ,')
+            ||'
 FROM ora$ptt_csv;
 COMMIT;'
         ;
@@ -1072,61 +1135,123 @@ COMMIT;'
     ;
 
     -- depends on same date/number defaults on deploy system as on one that creates this
-    -- you might wind up messing with the column lists and doing explicit conversions
+    -- you might wind up messing with the column lists and doing explicit conversions.
+    -- Because it is so funky, I'm handling date formats directly. You may need to make your own version.
     FUNCTION gen_deploy_merge(
         p_table_name    VARCHAR2
-        ,p_key_cols     VARCHAR2 -- CSV list
+        ,p_key_cols     VARCHAR2 -- case sensitive! CSV list
         ,p_where_clause CLOB DEFAULT NULL
-        ,p_schema_name  VARCHAR2 DEFAULT NULL -- defaults to current_schema
+        ,p_schema_name  VARCHAR2 DEFAULT NULL -- case_sensitive! defaults to current_schema
     ) RETURN CLOB
     IS
-        v_sql       CLOB;
-        v_p_on      perlish_util_udt := perlish_util_udt(p_key_cols);--.map('"$_"');
-        v_p_upd     perlish_util_udt;
-        v_arr_v     &&d_arr_varchar2_udt.;
+        v_sql               CLOB;
+        v_p_on              perlish_util_udt := perlish_util_udt(p_key_cols);--.map('"$_"');
+        v_p_upd             perlish_util_udt;
+
+        v_arr_select_column &&d_arr_varchar2_udt.;
+        v_arr_col_names     &&d_arr_varchar2_udt.;
+        v_has_clob          VARCHAR2(1);
     BEGIN
-        v_sql := q'{SELECT column_name FROM all_tab_columns 
-            WHERE owner = '}'||NVL(p_schema_name, SYS_CONTEXT('USERENV','CURRENT_SCHEMA'))
-            ||q'{' AND table_name = '}'||p_table_name
-            ||q'{' AND column_name NOT IN (}'
-            ||v_p_on.map(q'{'$_'}').join(', ')
-            ||')
-        ORDER BY column_id';
-        EXECUTE IMMEDIATE v_sql BULK COLLECT INTO v_arr_v;
-        v_p_upd := perlish_util_udt(v_arr_v).map('"$_"');
+        WITH dt AS (
+            SELECT 
+                 column_id
+                ,data_type
+                ,column_name 
+                ,CASE 
+                    WHEN data_type = 'DATE' THEN 'TO_DATE("'||column_name||q'{", 'MM/DD/YYYY HH24:MI:SS') AS "}'||column_name||'"'
+                    WHEN data_type LIKE 'TIMESTAMP%' THEN 'TO_TIMESTAMP("'||column_name||q'{", 'MM/DD/YYYY HH24:MI:SS.FF') AS "}'||column_name||'"'
+                    --WHEN data_type = 'CLOB' THEN 'TO_CLOB("'||column_name||'") AS "'||column_name||'"'
+                    WHEN data_type IN ('FLOAT','NUMBER') THEN 'TO_NUMBER("'||column_name||'") AS "'||column_name||'"'
+                    WHEN data_type = 'BINARY_DOUBLE' THEN 'TO_BINARY_DOUBLE("'||column_name||'") AS "'||column_name||'"'
+                    WHEN data_type = 'BINARY_FLOAT' THEN 'TO_BINARY_FLOAT("'||column_name||'") AS "'||column_name||'"'
+                    ELSE '"'||column_name||'"'
+                END AS select_column
+            FROM all_tab_columns
+            WHERE owner = NVL(p_schema_name, SYS_CONTEXT('USERENV','CURRENT_SCHEMA'))
+                AND table_name = p_table_name
+        ) SELECT CAST(COLLECT(column_name ORDER BY column_id) AS &&compile_schema..&&d_arr_varchar2_udt.) AS cns
+            ,CAST(COLLECT(select_column ORDER BY column_id) AS &&compile_schema..&&d_arr_varchar2_udt.) AS scns
+            ,MAX(CASE WHEN data_type = 'CLOB' THEN 'Y' END) AS has_clob
+        INTO v_arr_col_names, v_arr_select_column, v_has_clob
+        FROM dt
+        ;
+        IF v_has_clob = 'Y' THEN
+            raise_application_error(-20002, 'One or more columns are CLOB which is not supported');
+        END IF;
+
+        -- put double quotes around these names now since we will use them in SQL.
+        -- the updatable columns for in a perlish object
+        v_p_upd := perlish_util_udt( v_arr_col_names MULTISET EXCEPT v_p_on.get).map('"$_"');
+        -- the ON clause columns
         v_p_on := v_p_on.map('"$_"');
 
-        v_sql := 'SELECT * FROM '||CASE WHEN p_schema_name IS NOT NULL THEN p_schema_name||'.' END||p_table_name;
+
+        v_sql := 'SELECT * FROM '||CASE WHEN p_schema_name IS NOT NULL THEN '"'||p_schema_name||'".' END||'"'||p_table_name||'"';
         IF p_where_clause IS NOT NULL THEN
-            v_sql := v_sql||' WHERE '||p_where_clause;
+            v_sql := v_sql||' 
+WHERE '||p_where_clause;
         END IF;
-        RETURN 'BEGIN
-    APP_CSV_PKG.create_ptt_csv('||APP_LOB.clobtoliterals(p_clob => get_clob(p_sql => v_sql), p_split_on_lf => 'Y')||'
-);
+        -- using the prior value of v_sql to assign to it. Common, but buried a little here.
+        -- The first step creates a csv dataset as a clob, wraps it as a SQL literal or literals if it must be concatenated,
+        -- then calls a procedure to create a private temporary table from that construct
+        v_sql := 'BEGIN
+    &&compile_schema..APP_CSV_PKG.create_ptt_csv(
+        p_clob  => '
+            ||APP_LOB.clobtoliterals(
+                p_clob          => get_clob(
+                                            p_sql               => v_sql
+                                            ,p_date_format      => 'MM/DD/YYYY HH24:MI:SS'
+                                            ,p_timestamp_format => 'MM/DD/YYYY HH24:MI:SS.FF'
+                                           )
+                ,p_split_on_lf  => 'Y'
+                )
+            ||'
+    );
 END;
-'||'/
-MERGE INTO '||p_table_name||' t
+'           
+            ||'/
+' -- sqlplus will puke if you put the slash against the left margin
+            -- now we use the data from the private temp table
+            ||'MERGE INTO '
+            ||CASE WHEN p_schema_name IS NOT NULL THEN '"'||p_schema_name||'".' END ||'"'||p_table_name||'" t
 USING (
-    SELECT *
+    SELECT
+        '
+            ||perlish_util_udt(v_arr_select_column).join('
+        ,')
+
+            ||'
     FROM ora$ptt_csv
 ) q
 ON (
-    '||v_p_on.map('t.$_ = q.$_').join(' AND ')
-||'
+    '
+            ||v_p_on.map('t.$_ = q.$_').join(' 
+        AND '                            )
+            ||'
 )
 WHEN MATCHED THEN UPDATE SET 
-    '||v_p_upd.map('t.$_ = q.$_').join('
+    '
+            ||v_p_upd.map('t.$_ = q.$_').join('
     ,')
-||'
+            ||'
+    WHERE
+        '
+            ||v_p_upd.map('DECODE(t.$_, q.$_, 0, 1)').join('
+        + ')
+            ||'
+        > 0
 WHEN NOT MATCHED THEN INSERT(
-    '||v_p_on.join(', ')||', '||v_p_upd.join(', ')
-||'
+    '
+            ||v_p_on.join(', ')||', '||v_p_upd.join(', ')
+            ||'
 ) VALUES (
-    '||v_p_on.map('q.$_').join(', ')||', '||v_p_upd.map('q.$_').join(', ')
-||'
+    '
+            ||v_p_on.map('q.$_').join(', ')||', '||v_p_upd.map('q.$_').join(', ')
+            ||'
 );
 COMMIT;'
         ;
+        RETURN v_sql;
     END gen_deploy_merge
     ;
 -- end preprocessor directive check for database version
