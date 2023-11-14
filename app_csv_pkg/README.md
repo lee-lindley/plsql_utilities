@@ -1,6 +1,7 @@
 # app_csv_pkg
 
 *app_csv_pkg* provides methods for dealing with Comma Separated Value (CSV) data.
+There are two sides to the coin; generating CSV data and consuming CSV data.
 
 - Create CSV Rows, File or CLOB from an Oracle query.
 - Split CSV Record into Collection of Fields
@@ -23,7 +24,8 @@ a Polymorphic Table Function. Likewise, methods can consume a multi-line CLOB or
 
 > NOTE: Many of the methods
 require Oracle version 18c or higher as they depend on a Polymorphic Table Function. 
-If you are on an earlier version, *split_csv*, *split_clob_to_lines*, and *split_lines_to_fields* methods will compile,
+If you are on an earlier version, *split_csv*, *split_clob_to_lines*, and *split_lines_to_fields* methods 
+(and the CLOB counterparts) will compile,
 but the rest will be left out.
 I have another github repository [app_csv_udt](https://github.com/lee-lindley/app_csv) 
 that should run on Oracle 10g or better, has a few more options, and an Object Oriented
@@ -306,10 +308,10 @@ a AS (
                 )
     ) t
 ) SELECT 
-     get(a.arr, 1) AS "Employee ID"
-    ,get(a.arr, 2) AS "Last Name"
-    ,get(a.arr, 3) AS "First Name"
-    ,get(a.arr, 4) AS "nickname"
+     wget(a.arr, 1) AS "Employee ID"
+    ,wget(a.arr, 2) AS "Last Name"
+    ,wget(a.arr, 3) AS "First Name"
+    ,wget(a.arr, 4) AS "nickname"
 FROM a
 ;
 /
@@ -444,10 +446,19 @@ COMMIT;
         ,p_strip_dquote     VARCHAR2    DEFAULT 'Y' -- also unquotes \" and "" pairs within the field to just "
         ,p_expected_cnt     NUMBER      DEFAULT 0 -- will get an array with at least this many elements
     );
+
+    PROCEDURE split_csv_c (
+         po_arr OUT NOCOPY  arr_clob_udt
+        ,p_s                CLOB
+        ,p_separator        VARCHAR2    DEFAULT ','
+        ,p_keep_nulls       VARCHAR2    DEFAULT 'N'
+        ,p_strip_dquote     VARCHAR2    DEFAULT 'Y' -- also unquotes \" and "" pairs within the field to just "
+        ,p_expected_cnt     NUMBER      DEFAULT 0 -- will get an array with at least this many elements
+    );
 ```
 
 - *po_arr*
-    - a collection that will be populated by the procedure
+    - a collection that will be populated by the procedure. It can be an array of VARCHAR2(4000), or CLOBS using the *_c* variant.
 - *p_s*
     - A string containing a CSV record
 - *p_separator*
@@ -486,10 +497,19 @@ do better. (really! I like to learn.)
         ,p_keep_nulls   VARCHAR2    DEFAULT 'N'
         ,p_strip_dquote VARCHAR2    DEFAULT 'Y' -- also unquotes \" and "" pairs within the field to just "
         ,p_expected_cnt NUMBER      DEFAULT 0 -- will get an array with at least this many elements
-    ) RETURN &&d_arr_varchar2_udt. 
+    ) RETURN arr_varchar2_udt
+    DETERMINISTIC;
+
+    FUNCTION split_csv_c (
+         p_s            CLOB
+        ,p_separator    VARCHAR2    DEFAULT ','
+        ,p_keep_nulls   VARCHAR2    DEFAULT 'N'
+        ,p_strip_dquote VARCHAR2    DEFAULT 'Y' -- also unquotes \" and "" pairs within the field to just "
+        ,p_expected_cnt NUMBER      DEFAULT 0 -- will get an array with at least this many elements
+    ) RETURN arr_clob_udt
     DETERMINISTIC;
 ```
-Calls PROCEDURE *split_csv* and returns the collection.
+Calls PROCEDURE *split_csv* (or *split_csv_c*)  and returns the collection.
 
 ```sql
     FUNCTION split_csv (
@@ -498,7 +518,7 @@ Calls PROCEDURE *split_csv* and returns the collection.
         ,p_keep_nulls   VARCHAR2    DEFAULT 'N'
         ,p_strip_dquote VARCHAR2    DEFAULT 'Y' -- also unquotes \" and "" pairs within the field to just "
         ,p_expected_cnt NUMBER      DEFAULT 0 -- will get an array with at least this many elements
-    ) RETURN &&d_arr_varchar2_udt. 
+    ) RETURN arr_varchar2_udt
     DETERMINISTIC;
 ```
 Explicitly converts the input VARCHAR2 source string to CLOB and calls PROCEDURE *split_csv*. Returns the collection.
@@ -524,6 +544,21 @@ Explicitly converts the input VARCHAR2 source string to CLOB and calls PROCEDURE
     )
     RETURN t_arr_csv_row_rec
     PIPELINED;
+
+    -- clob variant
+    TYPE t_csv_row_c_rec IS RECORD(
+        s   CLOB            -- the csv row
+        ,rn NUMBER          -- line number in the input
+    );
+    TYPE t_arr_csv_row_c_rec IS TABLE OF t_csv_row_c_rec;
+    FUNCTION split_clob_to_c_lines(
+        p_clob          CLOB
+        ,p_max_lines    NUMBER DEFAULT NULL
+        ,p_skip_lines   NUMBER DEFAULT NULL
+    )
+    RETURN t_arr_csv_row_c_rec
+    PIPELINED
+    ;
 ```
 
 - *p_clob*
@@ -589,6 +624,31 @@ for the order even if it works today. Most of the time you probably will not car
     RETURN t_arr_csv_fields_rec
     PIPELINED
     ;
+
+    -- CLOB variant
+    TYPE t_csv_row_c_rec IS RECORD(
+        s   CLOB            -- the csv row
+        ,rn NUMBER          -- line number in the input
+    );
+    TYPE t_arr_csv_row_c_rec IS TABLE OF t_csv_row_c_rec;
+    TYPE t_curs_csv_row_c_rec IS REF CURSOR RETURN t_csv_row_c_rec;
+
+    TYPE t_csv_fields_c_rec IS RECORD(
+        arr arr_clob_udt
+        ,rn NUMBER
+    );
+    TYPE t_arr_csv_fields_c_rec IS TABLE OF t_csv_fields_c_rec;
+
+    FUNCTION split_lines_to_c_fields(
+        p_curs          t_curs_csv_row_c_rec
+        ,p_separator    VARCHAR2    DEFAULT ','
+	    ,p_strip_dquote VARCHAR2    DEFAULT 'Y' -- also unquotes \" and "" pairs within the field to just "
+        ,p_keep_nulls   VARCHAR2    DEFAULT 'Y'
+    ) 
+    RETURN t_arr_csv_fields_c_rec
+    PIPELINED
+    ;
+
 ```
 
 - *p_curs*
@@ -617,6 +677,18 @@ for an example of using *split_lines_to_fields* as a chained pipeline row constr
     )
     RETURN arr_arr_varchar2_udt
     ;
+    -- clob variant
+    FUNCTION split_clob_to_c_fields(
+        p_clob          CLOB
+        ,p_max_lines    NUMBER      DEFAULT NULL
+        ,p_skip_lines   NUMBER      DEFAULT NULL
+        ,p_separator    VARCHAR2    DEFAULT ','
+	    ,p_strip_dquote VARCHAR2    DEFAULT 'Y' -- also unquotes \" and "" pairs within the field to just "
+        ,p_keep_nulls   VARCHAR2    DEFAULT 'Y'
+    )
+    RETURN arr_arr_clob_udt
+    ;
+
 ```
 
 - *p_clob*
@@ -768,6 +840,8 @@ The use case [Create Private Temporary Table from CSV CLOB](#create-private-temp
 provides an example usage while the 
 [Generate Deployment Script from Table](#generate-deployment-script-from-table)
 use case puts it into context.
+
+NOTE: PTTs do not support clob columns.
 
 ## gen_deploy_insert
 
