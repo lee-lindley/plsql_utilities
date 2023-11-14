@@ -51,6 +51,20 @@ in your cursor/query/view, you must cast them to DATE for it to work.
     );
     TYPE t_arr_csv_fields_rec IS TABLE OF t_csv_fields_rec;
 
+    -- public type to be returned by split_clob_to_c_lines PIPE ROW function
+    TYPE t_csv_row_c_rec IS RECORD(
+        s   CLOB            -- the csv row
+        ,rn NUMBER          -- line number in the input
+    );
+    TYPE t_arr_csv_row_c_rec IS TABLE OF t_csv_row_c_rec;
+    TYPE t_curs_csv_row_c_rec IS REF CURSOR RETURN t_csv_row_c_rec;
+
+    TYPE t_csv_fields_c_rec IS RECORD(
+        arr &&d_arr_clob_udt.
+        ,rn NUMBER
+    );
+    TYPE t_arr_csv_fields_c_rec IS TABLE OF t_csv_fields_c_rec;
+
     --
     -- split a clob into a row for each line.
     -- Handle case where a "line" can have embedded LF chars per RFC for CSV format
@@ -65,6 +79,14 @@ in your cursor/query/view, you must cast them to DATE for it to work.
     PIPELINED
     ;
 
+    FUNCTION split_clob_to_c_lines(
+        p_clob          CLOB
+        ,p_max_lines    NUMBER DEFAULT NULL
+        ,p_skip_lines   NUMBER DEFAULT NULL
+    )
+    RETURN t_arr_csv_row_c_rec
+    PIPELINED
+    ;
     /*
         You call this one as a chained pipeline in SQL like this. What you do with the array is up to you.
 
@@ -89,6 +111,16 @@ in your cursor/query/view, you must cast them to DATE for it to work.
     PIPELINED
     ;
 
+    FUNCTION split_lines_to_c_fields(
+        p_curs          t_curs_csv_row_c_rec
+        ,p_separator    VARCHAR2    DEFAULT ','
+	    ,p_strip_dquote VARCHAR2    DEFAULT 'Y' -- also unquotes \" and "" pairs within the field to just "
+        ,p_keep_nulls   VARCHAR2    DEFAULT 'Y'
+    ) 
+    RETURN t_arr_csv_fields_c_rec
+    PIPELINED
+    ;
+
     -- for when you need it in pl/sql array
     FUNCTION split_clob_to_fields(
         p_clob          CLOB
@@ -99,6 +131,18 @@ in your cursor/query/view, you must cast them to DATE for it to work.
         ,p_keep_nulls   VARCHAR2    DEFAULT 'Y'
     )
     RETURN &&d_arr_arr_varchar2_udt.
+    ;
+
+    -- for when you need it in pl/sql array
+    FUNCTION split_clob_to_c_fields(
+        p_clob          CLOB
+        ,p_max_lines    NUMBER      DEFAULT NULL
+        ,p_skip_lines   NUMBER      DEFAULT NULL
+        ,p_separator    VARCHAR2    DEFAULT ','
+	    ,p_strip_dquote VARCHAR2    DEFAULT 'Y' -- also unquotes \" and "" pairs within the field to just "
+        ,p_keep_nulls   VARCHAR2    DEFAULT 'Y'
+    )
+    RETURN &&d_arr_arr_clob_udt.
     ;
 
     -- assumes all rows in the collection have same number of fields
@@ -139,6 +183,25 @@ in your cursor/query/view, you must cast them to DATE for it to work.
 	) 
     ;
 
+	FUNCTION split_csv_c (
+	     p_s                CLOB
+	    ,p_separator        VARCHAR2    DEFAULT ','
+	    ,p_keep_nulls       VARCHAR2    DEFAULT 'N'
+	    ,p_strip_dquote     VARCHAR2    DEFAULT 'Y' -- also unquotes \" and "" pairs within the field to just "
+        ,p_expected_cnt     NUMBER      DEFAULT 0
+	) RETURN &&d_arr_clob_udt. 
+    DETERMINISTIC
+    ;
+
+	PROCEDURE split_csv_c (
+         po_arr OUT NOCOPY  &&d_arr_clob_udt.
+	    ,p_s                CLOB
+	    ,p_separator        VARCHAR2    DEFAULT ','
+	    ,p_keep_nulls       VARCHAR2    DEFAULT 'N'
+	    ,p_strip_dquote     VARCHAR2    DEFAULT 'Y' -- also unquotes \" and "" pairs within the field to just "
+        ,p_expected_cnt     NUMBER      DEFAULT 0 -- will get an array with at least this many elements
+	) 
+    ;
 $if DBMS_DB_VERSION.VERSION >= 18 $then
 
     PROCEDURE create_ptt_csv (

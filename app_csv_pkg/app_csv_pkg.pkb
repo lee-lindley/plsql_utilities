@@ -154,6 +154,53 @@ SOFTWARE.
         RETURN;
     END split_clob_to_lines
     ;
+
+    -- same as split_clob_to_lines but output structure contains a clob for each line
+    FUNCTION split_clob_to_c_lines(
+        p_clob          CLOB
+        ,p_max_lines    NUMBER DEFAULT NULL
+        ,p_skip_lines   NUMBER DEFAULT NULL
+    )
+    RETURN t_arr_csv_row_c_rec
+    PIPELINED
+    IS
+        v_rc            BINARY_INTEGER := 0;
+        v_pos           BINARY_INTEGER;
+        v_pos_last      BINARY_INTEGER := 1;
+        v_len           BINARY_INTEGER;
+        v_row           t_csv_row_c_rec;
+
+    BEGIN
+--DBMS_OUTPUT.put_line('length: '||LENGTH(p_clob));
+        LOOP
+            -- v_pos is the character position AFTER the match
+            v_pos := REGEXP_INSTR(p_clob, gc_rows_regexp, v_pos_last, 1, 1);
+--DBMS_OUTPUT.put_line('vpos: '||v_pos||' v_pos_last: '||v_pos_last);
+            EXIT WHEN v_pos = 0;
+            v_rc := v_rc + 1;
+            --
+            -- Leave the newline out of the string we pipe out for this row
+            -- (If there is one. May not be on last line.)
+            --
+            v_len := (v_pos - v_pos_last) - CASE WHEN SUBSTR(p_clob, v_pos - 1, 1) = CHR(10) THEN 1 ELSE 0 END;
+--DBMS_OUTPUT.put_line('v_len: '||v_len);
+            IF v_rc <= p_skip_lines THEN
+                -- still need to advance the position
+                v_pos_last := v_pos;
+                CONTINUE;
+            END IF;
+            IF v_len > 0 THEN
+                v_row.rn := v_rc;
+                v_row.s := SUBSTR(p_clob, v_pos_last, v_len);
+                PIPE ROW(v_row);
+            END IF;
+            EXIT WHEN v_rc >= p_max_lines 
+                OR v_pos_last = v_pos; -- match on end of clob will repeat as it is 0 width
+            v_pos_last := v_pos;
+        END LOOP;
+        RETURN;
+    END split_clob_to_c_lines
+    ;
     FUNCTION split_lines_to_fields(
         p_curs          t_curs_csv_row_rec
         ,p_separator    VARCHAR2    DEFAULT ','
@@ -183,6 +230,35 @@ SOFTWARE.
     END split_lines_to_fields
     ;
 
+    -- same as split_lines_to_fields, but incoming lines are clobs and outgoing fields are clobs
+    FUNCTION split_lines_to_c_fields(
+        p_curs          t_curs_csv_row_c_rec
+        ,p_separator    VARCHAR2    DEFAULT ','
+	    ,p_strip_dquote VARCHAR2    DEFAULT 'Y' -- also unquotes \" and "" pairs within the field to just "
+        ,p_keep_nulls   VARCHAR2    DEFAULT 'Y'
+    ) 
+    RETURN t_arr_csv_fields_c_rec
+    PIPELINED
+    IS
+        v_row       t_csv_fields_c_rec;
+        v_in_row    t_csv_row_c_rec;
+    BEGIN
+        LOOP
+            FETCH p_curs INTO v_in_row;
+            EXIT WHEN p_curs%NOTFOUND;
+            v_row.rn := v_in_row.rn;
+            split_csv_c(
+                  po_arr            => v_row.arr
+                , p_s               => v_in_row.s
+                , p_separator       => p_separator
+                , p_strip_dquote    => p_strip_dquote
+                , p_keep_nulls      => p_keep_nulls
+            );
+            PIPE ROW(v_row);
+        END LOOP;
+        RETURN;
+    END split_lines_to_c_fields
+    ;
     -- for when you need it in pl/sql array
     FUNCTION split_clob_to_fields(
         p_clob          CLOB
@@ -217,6 +293,41 @@ SOFTWARE.
 
         RETURN v_arr_arr;
     END split_clob_to_fields
+    ;
+
+    FUNCTION split_clob_to_c_fields(
+        p_clob          CLOB
+        ,p_max_lines    NUMBER      DEFAULT NULL
+        ,p_skip_lines   NUMBER      DEFAULT NULL
+        ,p_separator    VARCHAR2    DEFAULT ','
+	    ,p_strip_dquote VARCHAR2    DEFAULT 'Y' -- also unquotes \" and "" pairs within the field to just "
+        ,p_keep_nulls   VARCHAR2    DEFAULT 'Y'
+    )
+    RETURN &&d_arr_arr_clob_udt.
+    IS
+        v_arr_arr   &&d_arr_arr_clob_udt. ;
+    BEGIN
+        SELECT CAST(COLLECT(t.arr ORDER BY t.rn) AS &&compile_schema..&&d_arr_arr_clob_udt.) INTO v_arr_arr
+        FROM TABLE(
+            &&compile_schema..app_csv_pkg.split_lines_to_c_fields(
+                p_curs          => CURSOR(
+                                        SELECT *
+                                        FROM TABLE( &&compile_schema..app_csv_pkg.split_clob_to_c_lines(
+                                                        p_clob          => p_clob
+                                                        ,p_max_lines    => p_max_lines
+                                                        ,p_skip_lines   => p_skip_lines
+                                                    ) 
+                                        )
+                                   )
+                ,p_separator    => p_separator
+                ,p_strip_dquote => p_strip_dquote
+                ,p_keep_nulls   => p_keep_nulls
+            )
+        ) t
+        ;
+
+        RETURN v_arr_arr;
+    END split_clob_to_c_fields
     ;
 
     FUNCTION get_cursor_from_collections(
@@ -369,6 +480,105 @@ ORDER BY rn
             END IF;
         END IF; -- end if input string not null
 	END split_csv
+	;
+
+
+	FUNCTION split_csv_c (
+	     p_s                CLOB
+	    ,p_separator        VARCHAR2    DEFAULT ','
+	    ,p_keep_nulls       VARCHAR2    DEFAULT 'N'
+	    ,p_strip_dquote     VARCHAR2    DEFAULT 'Y' -- also unquotes \" and "" pairs within the field to just "
+        ,p_expected_cnt     NUMBER      DEFAULT 0 -- will get an array with at least this many elements
+	) RETURN &&d_arr_clob_udt. 
+    DETERMINISTIC
+    IS
+        v_arr           &&d_arr_clob_udt.;
+    BEGIN
+        split_csv_c(v_arr, p_s, p_separator, p_keep_nulls, p_strip_dquote, p_expected_cnt);
+        RETURN v_arr;
+    END split_csv_c;
+
+
+    PROCEDURE split_csv_c (
+         po_arr OUT NOCOPY  &&d_arr_clob_udt.
+	    ,p_s                CLOB
+	    ,p_separator        VARCHAR2    DEFAULT ','
+	    ,p_keep_nulls       VARCHAR2    DEFAULT 'N'
+	    ,p_strip_dquote     VARCHAR2    DEFAULT 'Y' -- also unquotes \" and "" pairs within the field to just "
+        ,p_expected_cnt     NUMBER      DEFAULT 0 -- will get an array with at least this many elements
+	) 
+	-- when p_s IS NULL, returns initialized collection with COUNT=0
+	IS
+        v_str                   CLOB;
+        v_i                     BINARY_INTEGER := 0;
+        v_pos                   BINARY_INTEGER;
+        v_pos_last              BINARY_INTEGER := 1;
+        v_last_had_separator    BINARY_INTEGER := 0;
+        v_len                   BINARY_INTEGER;
+        v_regexp                VARCHAR2(1024) := REPLACE(gc_csv_regexp, '__p_separator__', p_separator);
+	BEGIN
+        po_arr := &&d_arr_clob_udt.();
+        IF p_expected_cnt > 0 THEN
+            po_arr.EXTEND(p_expected_cnt);
+        END IF;
+        IF p_s IS NOT NULL THEN
+            LOOP
+                -- get end char of matching string
+                v_pos := REGEXP_INSTR(p_s, v_regexp
+                            , v_pos_last    /*position*/
+                            , 1             /*occurence*/ 
+                            , 1             /*return_opt*/ 
+                         ); 
+                -- this regexp WILL match until it gets to the end of the string. Once v_pos_last 
+                -- is on a character past the end of the string, it will return 0.
+                EXIT WHEN v_pos = 0;
+                -- whether or not we matched a separator character at the end of the token. Last one
+                -- will match $ instead (unless the last field was NULL). We need to know that both
+                -- here and after the loop
+                v_last_had_separator := CASE WHEN SUBSTR(p_s, v_pos - 1, 1) = p_separator THEN 1 ELSE 0 END;
+                v_len := (v_pos - v_pos_last) - v_last_had_separator;
+                IF v_len > 0 THEN
+                    v_str := TRIM(SUBSTR(p_s, v_pos_last, v_len)); -- could still be null after trim
+                ELSE
+                    v_str := NULL;
+                END IF;
+                IF v_str IS NOT NULL OR p_keep_nulls = 'Y' THEN
+                    IF SUBSTR(v_str,1,1) = '"' THEN
+                        IF p_strip_dquote = 'Y' THEN -- otherwise keep everything after trim which means should end on dquote
+	                        v_str := REGEXP_REPLACE(v_str, 
+	                                    '^"|"$'         -- leading '"' or ending '"'
+	                                        ||'|["\\]'  -- or one of chars '"' or \
+	                                        ||'(")'     -- that is followed by a '"' and we capture that one in \1
+	                                    ,'\1'           -- We put any '"' we captured back without the backwack or '"' quote
+	                                    ,1              -- start at position 1 in v_str
+	                                    ,0              -- 0 occurence means replace all of these we find
+	                                ); 
+                        END IF;
+                    ELSIF v_str IS NOT NULL THEN
+                        -- unbackwack the separator char in the token
+                        v_str := REGEXP_REPLACE(v_str, '\\('||p_separator||')', '\1', 1, 0);
+                    END IF;
+
+                    v_i := v_i + 1;
+                    IF v_i > p_expected_cnt THEN -- otherwise we already have room
+	                    po_arr.EXTEND;
+                    END IF;
+	                po_arr(v_i) := v_str;
+                END IF; -- done keeping token as array entry
+
+                v_pos_last := v_pos; -- walk the string to next token
+
+            END LOOP;
+
+            IF v_last_had_separator = 1 AND p_keep_nulls = 'Y' THEN -- trailing null field value
+                v_i := v_i + 1;
+                IF v_i > p_expected_cnt THEN -- otherwise we already have room
+                    po_arr.EXTEND;
+                END IF;
+                po_arr(v_i) := NULL; -- do not think this is necessary, but make it explicit
+            END IF;
+        END IF; -- end if input string not null
+	END split_csv_c
 	;
 
 $if DBMS_DB_VERSION.VERSION >= 18 $then
