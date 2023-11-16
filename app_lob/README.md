@@ -14,6 +14,8 @@ Package provides utility methods for CLOB/BLOB types. Most of them should be in 
     FUNCTION clobtoliterals(
         p_clob                      CLOB
         ,p_split_on_lf              VARCHAR2 DEFAULT 'n' -- back up to prior LF for end of chunk
+        ,p_quote_char_start         VARCHAR2(1) DEFAULT '`'
+        ,p_quote_char_end           VARCHAR2(1) DEFAULT '`'
     ) RETURN CLOB;
     ```
     - *clobtoliterals* returns a string consisting of one or more concatenated quoted literals. It is useful when you need to build a clob larger than 32767 bytes within a deployment file such as can be loaded via *sqlplus*. It is likely only used in a development environment.
