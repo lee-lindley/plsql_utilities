@@ -1,10 +1,12 @@
-CREATE OR REPLACE PACKAGE app_lob
+CREATE OR REPLACE PACKAGE &&compile_schema..app_lob
 AUTHID CURRENT_USER
 IS
 -- documentation at https://github.com/lee-lindley/plsql_utilities
     FUNCTION clobtoliterals(
         p_clob                      CLOB
         ,p_split_on_lf              VARCHAR2 DEFAULT 'n' -- back up to prior LF for end of chunk
+        ,p_quote_char_start         VARCHAR2 DEFAULT '`'
+        ,p_quote_char_end           VARCHAR2 DEFAULT '`'
     ) RETURN CLOB
     ;
     /*
@@ -24,9 +26,9 @@ IS
             WHERE id = 123;
         
         Result:
-            TO_CLOB(q'{...}'
-            ||TO_CLOB(q'{...}'
-            ||TO_CLOB(q'{...}'
+            TO_CLOB(q'`...`'
+            ||TO_CLOB(q'`...`'
+            ||TO_CLOB(q'`...`'
     */
 
 /*

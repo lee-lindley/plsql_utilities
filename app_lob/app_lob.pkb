@@ -1,4 +1,4 @@
-CREATE OR REPLACE PACKAGE BODY app_lob
+CREATE OR REPLACE PACKAGE BODY &&compile_schema..app_lob
 IS
     PROCEDURE blobtofile(
          p_blob                     BLOB
@@ -120,6 +120,8 @@ IS
     FUNCTION clobtoliterals(
         p_clob                      CLOB
         ,p_split_on_lf              VARCHAR2 DEFAULT 'n' -- back up to prior LF for end of chunk
+        ,p_quote_char_start         VARCHAR2 DEFAULT '`'
+        ,p_quote_char_end           VARCHAR2 DEFAULT '`'
     ) RETURN CLOB
     IS
         v_clob                      CLOB;
@@ -150,7 +152,9 @@ DBMS_OUTPUT.put_line('l_i: '||TO_CHAR(l_i));
                 END;
             END IF;
             v_clob := v_clob || CASE WHEN v_pos > 1 THEN CHR(10)||'||' END
-                        ||q'[TO_CLOB(q'{]'||SUBSTR(p_clob, v_pos, v_end - v_pos + 1)||q'[}')]'
+                        ||q'[TO_CLOB(q']'||p_quote_char_start
+                        ||SUBSTR(p_clob, v_pos, v_end - v_pos + 1)
+                        ||p_quote_char_end||q'[')]'
             ;
             v_pos := v_end + 1;
         END LOOP;
