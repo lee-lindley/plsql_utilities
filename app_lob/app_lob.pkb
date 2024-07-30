@@ -136,7 +136,7 @@ IS
         END IF;
         WHILE v_pos <= v_len
         LOOP
-            v_end := LEAST(v_pos + 32767 - 1, v_len);
+            v_end := LEAST(v_pos + 32767 - 1000 /*padding for multibyte chars*/, v_len);
             IF p_split_on_lf IN ('y','Y') THEN
                 DECLARE
                     l_i BINARY_INTEGER;
